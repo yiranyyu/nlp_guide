@@ -14,8 +14,6 @@ Saving model to ./model/1m_words.txt_5_skip-gram_neg5.model
 [1 epoch] of process 15, Alpha: 0.025000
 [2 epoch] of process 15, Alpha: 0.004526
 [3 epoch] of process 15, Alpha: 0.000003
-[4 epoch] of process 15, Alpha: 0.000003
-[5 epoch] of process 15, Alpha: 0.000003
 [1 epoch] of process 14, Alpha: 0.025000
 [2 epoch] of process 14, Alpha: 0.002029
 [3 epoch] of process 14, Alpha: 0.000003

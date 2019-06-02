@@ -39,9 +39,9 @@ class Vocab:
                 vocab_items[vocab_hash[token]].count += 1
                 word_count += 1
 
-                if word_count % 1_000 == 0:
-                    sys.stdout.write("\rReading word %d" % word_count)
-                    sys.stdout.flush()
+#                if word_count % 1_000 == 0:
+#                    sys.stdout.write("\rReading word %d" % word_count)
+#                    sys.stdout.flush()
 
             # Add special tokens <bol> (beginning of line) and <eol> (end of line)
             vocab_items[vocab_hash['<bol>']].count += 1

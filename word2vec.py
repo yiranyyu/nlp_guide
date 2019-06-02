@@ -226,7 +226,7 @@ def train_process(pid):
     while current_epoch < epoch:
         current_epoch += 1
         fi.seek(start)
-        print('[%d epoch] of process %d, Alpha: %f' % (current_epoch, pid, alpha))
+        print('[%d epoch] of process %d, Alpha: %f' % (current_epoch, pid, alpha), flush=True)
         while fi.tell() < end:
             line = fi.readline().strip()
             # Skip blank lines

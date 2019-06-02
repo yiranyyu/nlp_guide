@@ -297,7 +297,7 @@ int AddWordToVocab(char *word)
     // Reallocate memory if needed
     if (vocab_size + 2 >= vocab_max_size) {
         vocab_max_size += 1000;
-        vocab = (struct vocab_word *)real_tloc(vocab, vocab_max_size * sizeof(struct vocab_word));
+        vocab = (struct vocab_word *)realloc(vocab, vocab_max_size * sizeof(struct vocab_word));
     }
 
     // Add the word to the 'vocab_hash' table so that we can map quickly from the
@@ -381,7 +381,7 @@ void SortVocab()
 
     // Reallocate the vocab array, chopping off all of the low-frequency words at
     // the end of the table.
-    vocab = (struct vocab_word *)real_tloc(vocab, (vocab_size + 1) * sizeof(struct vocab_word));
+    vocab = (struct vocab_word *)realloc(vocab, (vocab_size + 1) * sizeof(struct vocab_word));
 
     // Allocate memory for the binary tree construction
     for (a = 0; a < vocab_size; a++)

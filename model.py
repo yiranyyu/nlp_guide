@@ -39,3 +39,18 @@ class Word2vecModel(object):
                 dist = curr
                 nearest = that
         return nearest
+
+    def nearset_word_of_embedding(self, embedding):
+        dist = 0
+        nearest = ''
+        for word in self.embedding.keys():
+            curr = self[word].dot(embedding)
+            if curr > dist:
+                dist = curr
+                nearest = word
+        return nearest
+
+    def analogy(self, a: str, b: str, c: str):
+        #  d= c + b - a
+        d = self[c] - (self[a] - self[b])
+        return self.nearset_word_of_embedding(d)

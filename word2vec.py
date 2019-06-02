@@ -242,8 +242,9 @@ def train_process(pid):
                     last_word_count = word_count
 
                     # Recalculate alpha
-                    alpha = starting_alpha * (1 - float(global_word_count.value) / vocab.word_count)
-                    if alpha < starting_alpha * 0.0001: alpha = starting_alpha * 0.0001
+                    alpha = starting_alpha * (1 - float(global_word_count.value) / (epoch * vocab.word_count + 1))
+                    if alpha < starting_alpha * 0.0001:
+                        alpha = starting_alpha * 0.0001
 
                     # Print progress info
                     # sys.stdout.write("\rAlpha: %f Progress: %d of %d (%.2f%%)\r" %

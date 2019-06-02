@@ -520,14 +520,18 @@ void CreateBinaryTree()
  */
 void LearnVocabFromTrainFile()
 {
+    puts("Start learning vocab");
     char word[MAX_STRING];
     FILE *fin;
     long long a, i;
 
+    puts("Init hash");
+    printf("vocab_ash_size=%d\n", vocab_hash_size);
     // Populate the vocab table with -1s.
     for (a = 0; a < vocab_hash_size; a++)
         vocab_hash[a] = -1;
 
+    puts("Try open file");
     // Open the training file.
     fin = fopen(train_file, "rb");
     if (fin == NULL)
@@ -538,12 +542,14 @@ void LearnVocabFromTrainFile()
 
     vocab_size = 0;
 
+    puts("Start add word to vocab");
     // The special token </s> is used to mark the end of a sentence. In training,
     // the context window does not go beyond the ends of a sentence.
     //
     // Add </s> explicitly here so that it occurs at position 0 in the vocab.
     AddWordToVocab((char *)"</s>");
 
+    puts("Start reading words");
     while (1) {
         // Read the next word from the file into the string 'word'.
         ReadWord(word, fin);
@@ -1134,6 +1140,8 @@ void TrainModel()
     else
         LearnVocabFromTrainFile();
 
+    puts("Vocab init done!");
+
     // Save the vocabulary.
     if (save_vocab_file[0] != 0) SaveVocab();
 
@@ -1142,6 +1150,7 @@ void TrainModel()
 
     // Allocate the weight matrices and initialize them.
     InitNet();
+    puts("InitNet return");
 
     // If we're using negative sampling, initialize the unigram table, which
     // is used to pick words to use as "negative samples" (with more frequent
@@ -1157,6 +1166,7 @@ void TrainModel()
 
 
     fo = fopen(output_file, "wb");
+    printf("open output\n");
     if (classes == 0)
     {
         // Save the word vectors
@@ -1316,6 +1326,11 @@ int main(int argc, char **argv)
 
     (vocab_hash_size, sizeof(int));
     expTable = (real_t *)malloc((EXP_TABLE_SIZE + 1) * sizeof(real_t));
+    vocab_hash = (int*)malloc(sizeof(int) * vocab_hash_size);
+    if (vocab_hash == NULL){
+        perror("malloc");
+	exit(1);
+    }
     for (i = 0; i < EXP_TABLE_SIZE; i++)
     {
         expTable[i] = exp((i / (real_t)EXP_TABLE_SIZE * 2 - 1) * MAX_EXP); // Precompute the exp() table

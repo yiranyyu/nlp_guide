@@ -1324,7 +1324,6 @@ int main(int argc, char **argv)
     // Allocate the vocabulary table.
     vocab = (struct vocab_word *)calloc(vocab_max_size, sizeof(struct vocab_word));
 
-    (vocab_hash_size, sizeof(int));
     expTable = (real_t *)malloc((EXP_TABLE_SIZE + 1) * sizeof(real_t));
     vocab_hash = (int*)malloc(sizeof(int) * vocab_hash_size);
     if (vocab_hash == NULL){

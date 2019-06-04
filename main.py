@@ -9,7 +9,7 @@ if __name__ == "__main__":
     cbow = 0
     neg = 5
 
-    data_file = '103k_words.txt'
+    data_file = '346m_words.txt'
     model_file = '%s_%s_%s_%s.%s' % (data_file, epoch,('cbow' if cbow else 'skip-gram'), (('neg%d' % neg) if neg else 'softmax'),'model')
     data_path = os.path.join(data_dir, data_file)
     model_path = os.path.join(model_dir, model_file)

@@ -21,8 +21,11 @@ class Word2vecModel(object):
         print('Model init with %d words, embbing_size=%d' %
               (self.words, self.size))
 
-    def __getitem__(self, word):
-        return self.embedding[word]
+    def __getitem__(self, word: str):
+        try:
+            return self.embedding[word]
+        except KeyError:
+            return self.embedding[word.lower()]
 
     def similarity(self, a: str, b: str):
         vec = self[a] - self[b]

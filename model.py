@@ -2,6 +2,8 @@ import numpy as np
 import sys
 
 
+# TODO: make a map from <word> to <index_in_matrix> and a map from <index_in_matrix> to <word>
+# use <matrix> of embedding to caculate nearest neighbor
 class Word2vecModel(object):
     def __init__(self, path):
         with open(path, 'rt') as file:
@@ -21,7 +23,7 @@ class Word2vecModel(object):
         print('Model init with %d words, embbing_size=%d' %
               (self.words, self.size))
 
-    def __getitem__(self, word):
+    def __getitem__(self, word: str):
         return self.embedding[word]
 
     def similarity(self, a: str, b: str):
@@ -53,4 +55,13 @@ class Word2vecModel(object):
     def analogy(self, a: str, b: str, c: str):
         #  d= c + b - a
         d = self[c] - (self[a] - self[b])
-        return self.nearset_word_of_embedding(d)
+        dist = 0
+        nearest = ''
+        for word in self.embedding.keys():
+            if word in [a, b, c]:
+                continue
+            curr = self[word].dot(d)
+            if curr > dist:
+                dist = curr
+                nearest = word
+        return nearest

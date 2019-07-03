@@ -262,7 +262,7 @@ def train_process(pid):
                 if cbow:
                     # Compute neu1
                     neu1 = np.mean(np.array([syn0[c] for c in context]), axis=0)
-                    assert len(neu1) == dim, 'neu1 and dim do not agree'
+                    # assert len(neu1) == dim, 'neu1 and dim do not agree'
 
                     # Init neu1e with zeros
                     neu1e = np.zeros(dim)

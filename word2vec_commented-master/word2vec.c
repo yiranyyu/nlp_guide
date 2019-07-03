@@ -95,9 +95,10 @@ long long train_words = 0, word_count_actual = 0, iter = 5, file_size = 0, class
 
 /*
  * ======== alpha ========
- * TODO - This is a learning rate parameter.
+ * This is a learning rate parameter. One internal state changes with respect to training process
  *
  * ======== starting_alpha ========
+ * Init value of alpha
  *
  * ======== sample ========
  * This parameter controls the subsampling of frequent words.
@@ -112,6 +113,14 @@ clock_t start;
 
 int hs = 0, negative = 5;
 const int table_size = 1e8;
+
+/**
+ * ======== table ========
+ * This table stores index of words in range[0, vocab_size)
+ * How many item in the table is <x> is propotional to the weight of the <x>th word
+ * in the vocabulary, while the weight is pow(vocab[x].cn, power)
+ */
+
 int *table;
 
 /**
@@ -770,7 +779,7 @@ void *TrainModelThread(void *id)
 
         // This 'if' block retrieves the next sentence from the training text and
         // stores it in 'sen'.
-        // TODO - Under what condition would sentence_length not be zero?
+        // sentence_length will be 0 if last sentence is processed
         if (sentence_length == 0)
         {
             while (1)
@@ -862,6 +871,10 @@ void *TrainModelThread(void *id)
 
             sentence_position = 0;
         }
+
+        // if reach end of training data file
+        // or processed enough words (traing_words / num_threads)
+        // reset the local status
         if (feof(fi) || (word_count > train_words / num_threads))
         {
             word_count_actual += word_count - last_word_count;
@@ -871,6 +884,8 @@ void *TrainModelThread(void *id)
             word_count = 0;
             last_word_count = 0;
             sentence_length = 0;
+
+            // reset file pointer to locate the start of training file of this part
             fseek(fi, file_size / (long long)num_threads * (long long)id, SEEK_SET);
             continue;
         }

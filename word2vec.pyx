@@ -8,13 +8,13 @@ cdef extern from "limits.h":
 
 cdef class VocabItem:
     cdef int count, index
-    cdef __init__(self, word, int count, int index):
+    def __init__(self, word, int count, int index):
         self.word = word
         self.count = 0
         self.index = index
 
 cdef class Vocab:
-    cdef __init__(self, corpus_file: str, int min_count, float f):
+    def __init__(self, corpus_file: str, int min_count, float f):
         print("Start learning vocab")
         cdef unsigned long long word_count = 0
 
@@ -37,13 +37,13 @@ cdef class Vocab:
         print('Total words in training file: %d' % word_count)
         print('Vocab size: %d' % len(self.vocab))
 
-    cdef __getitem__(self, word: str):
+    def __getitem__(self, word: str):
         return self.vocab[word]
 
-    cdef __iter__(self):
+    def __iter__(self):
         return iter(self.vocab)
 
-    cdef __contains__(self, word: str):
+    def __contains__(self, word: str):
         return word in self.vocab
 
     cdef save_to_path(self, path: str):

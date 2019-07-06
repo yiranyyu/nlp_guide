@@ -8,13 +8,16 @@ cdef extern from "limits.h":
 
 cdef class VocabItem:
     cdef int count, index
+    cdef str word
     def __init__(self, word, int count, int index):
         self.word = word
         self.count = 0
         self.index = index
 
 cdef class Vocab:
-    def __init__(self, corpus_file: str, int min_count, float f):
+    cdef dict vocab
+    cdef int word_count
+    def __init__(self, corpus_file: str, min_count, f):
         print("Start learning vocab")
         cdef unsigned long long word_count = 0
 
@@ -46,12 +49,15 @@ cdef class Vocab:
     def __contains__(self, word: str):
         return word in self.vocab
 
-    cdef save_to_path(self, path: str):
+    cpdef save_to_path(self, path: str):
         pickle.dump(self, open(path, 'wb'))
 
     @staticmethod
-    cdef load_from_path(path: str):
-        return pickle.load(path)
+    def load_from_path(path: str):
+        return pickle.load(open(path, 'rb'))
+
+    def __str__(self):
+        return 'Vocab size: %d' % len(self.vocab)
 
 if __name__ == '__main__':
     pass

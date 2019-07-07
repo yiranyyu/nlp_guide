@@ -134,3 +134,4 @@ dmypy.json
 .vscode
 model
 *nohup.out
+*.c

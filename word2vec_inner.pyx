@@ -44,13 +44,16 @@ cdef class Vocab:
                     word_freq[token] = word_freq.get(token, 0) + 1
                     word_count += 1
 
-        cdef int freq
-        self.vocab = [VocabItem('<unk>', 0)]
+        cdef int freq, unk_freq = 0
+        self.vocab = []
         self.word_count = word_count
         for word in word_freq:
             freq = word_freq[word]
             if freq >= min_count:
                 self.vocab.append(VocabItem(word, freq))
+            else:
+                unk_freq += freq
+        self.vocab.append(VocabItem('<unk>', unk_freq))
         self.__sort_and_init_index()
         print('Total words in training file: %d' % word_count)
         print('Vocab size: %d' % len(self.vocab))

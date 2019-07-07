@@ -59,5 +59,19 @@ cdef class Vocab:
     def __str__(self):
         return 'Vocab size: %d' % len(self.vocab)
 
+cdef int exp_table_size = 1000, MAX_EXP = 6
+cdef float exp_table[1000]
+for i in range(exp_table_size):
+    exp_table[i] = exp((i / float(exp_table_size) * 2 - 1) * MAX_EXP); # Precompute the exp() table
+    exp_table[i] = exp_table[i] / (exp_table[i] + 1);                   # Precompute f(x) = x / (x + 1)
+
+cpdef sigmoid(float z):
+    if z > MAX_EXP:
+        return 1.0
+    elif z < -MAX_EXP:
+        return 0.0
+    else:
+        return exp_table[int((z + MAX_EXP) * (exp_table_size / MAX_EXP / 2))]
+
 if __name__ == '__main__':
     pass

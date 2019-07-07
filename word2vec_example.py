@@ -6,6 +6,7 @@ import time
 import warnings
 
 import numpy as np
+from word2vec_inner import sigmoid
 
 from multiprocessing import Pool, Value, Array
 
@@ -188,14 +189,6 @@ class UnigramTable:
     def sample(self, count):
         indices = np.random.randint(low=0, high=len(self.table), size=count)
         return [self.table[i] for i in indices]
-
-def sigmoid(z):
-    if z > 6:
-        return 1.0
-    elif z < -6:
-        return 0.0
-    else:
-        return 1 / (1 + math.exp(-z))
 
 def init_net(dim, vocab_size):
     # Init syn0 with random numbers from a uniform distribution on the interval [-0.5, 0.5]/dim

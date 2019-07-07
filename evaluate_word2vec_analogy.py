@@ -1,20 +1,20 @@
+import argparse
 from os import path
 from model import Word2vecModel
 from time import time
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    model_path = parser.add_argument('-model', help='Model path', dest='model_path', required=True)
     start = time()
     log_dir = './log'
     data_dir = './data/word2vec'
-    model_dir = './model'
     result_dir = './log'
 
     data_name = '类比_questions-words.txt'
-    model_name = '346m_words.txt_5_skip-gram_neg5.model'
 
     log_path = path.join(log_dir, model_name) + '.analogy_log_new'
     data_path = path.join(data_dir, data_name)
-    model_path = path.join(model_dir, model_name)
     result_path = path.join(result_dir, model_name) + '.analogy_result_new'
 
     model = Word2vecModel(model_path)

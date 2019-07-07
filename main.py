@@ -10,7 +10,7 @@ if __name__ == "__main__":
     neg = 5
     dim = '50'
 
-    data_file = 'train.txt'
+    data_file = '1m_words.txt'
     model_file = '%s_%s_%s_%s.%s' % (data_file, epoch,('cbow' if cbow else 'skip-gram'), (('neg%d' % neg) if neg else 'softmax'),'model')
     data_path = os.path.join(data_dir, data_file)
     model_path = os.path.join(model_dir, model_file)
@@ -26,4 +26,8 @@ if __name__ == "__main__":
                     '-cbow', str(cbow),
 					'-dim', dim,
                     '-negative', str(neg)])
+    os.system(cmd)
+
+    cmd = ' '.join(['python', './evaluate_word2vec_analogy.py',
+                    '-model', model_path])
     os.system(cmd)

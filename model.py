@@ -39,7 +39,7 @@ class Word2vecModel(object):
             file.write('%d %d\n' % (len(syn0), dim))
             for token, vector in zip(vocab, syn0):
                 file.write('%s ' % token.word)
-                file.write(str(x) for x in vector)
+                file.write(' '.join(str(x) for x in vector))
                 file.write('\n')
 
     def __getitem__(self, word: str):

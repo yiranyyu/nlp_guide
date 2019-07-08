@@ -10,8 +10,6 @@ from libc.stdlib cimport rand, malloc, free
 from libc.math cimport sin, cos, acos, exp, sqrt, fabs, M_PI
 from multiprocessing import Pool, Value, Array
 
-global_word_count = Value('i', 0)
-cdef int last_word_count = 0
 
 class VocabItem:
     def __init__(self, word: str, int count):
@@ -184,13 +182,6 @@ cpdef double sigmoid(float z):
     else:
         return exp_table[int((z + MAX_EXP) * (exp_table_size / MAX_EXP / 2))]
 
-# def __init_process():
-#     fi = open(args[-1], 'r')
-#     with warnings.catch_warnings():
-#         warnings.simplefilter('ignore', RuntimeWarning)
-#         syn0 = np.ctypeslib.as_array(syn0_tmp)
-#         syn1 = np.ctypeslib.as_array(syn1_tmp)
-
 def init_embedding(dim, vocab_size):
     tmp = np.random.uniform(low=-0.5 / dim, high=0.5 / dim, size=(vocab_size, dim))
     syn0 = np.ctypeslib.as_ctypes(tmp)
@@ -199,11 +190,15 @@ def init_embedding(dim, vocab_size):
     tmp = np.zeros(shape=(vocab_size, dim))
     syn1 = np.ctypeslib.as_ctypes(tmp)
     syn1 = Array(syn1._type_, syn1, lock=False)
+
+    syn0 = np.ctypeslib.as_array(syn0)
+    syn1 = np.ctypeslib.as_array(syn1)
     return syn0, syn1
 
-def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow) nogil:
-    cdef int word_count = 0
+def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow) :
+    cdef int word_count = 0, last_word_count = 0
     file.seek(start)
+    update = np.zeros(dim)
     while file.tell() < end:
         line = file.readline().strip()
         if not line: continue
@@ -225,7 +220,7 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
             # CBOW
             if cbow:
                 context_vector = np.mean(np.asarray(syn0[x] for x in context), axis=0)
-                update = np.zeros(dim)
+                update.fill(0)
                 if neg:
                     targets = [(token, 1)] + [(target, 0) for target in table.sample(neg)]
                 else:
@@ -242,7 +237,7 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
             # Skip-gram
             else:
                 for context_word in context:
-                    update = np.zeros(dim)
+                    update.fill(0)
                     if neg:
                         targets = [(token, 1)] + [(target, 0) for target in table.sample(neg)]
                     else:
@@ -256,43 +251,18 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
                     syn0[context_word] += update
             word_count += 1
     global_word_count.value += (word_count - last_word_count)
-    return current_epoch + 1
+    return (current_epoch + 1), lr
 
-def train_process(pid, file_size, num_process, file, lr, epoch, vocab, win, cbow, table, neg, dim, syn0, syn1) nogil:
+def train_process(pid, corpus_file, num_process, lr, epoch, vocab, win, cbow, table, neg, dim, syn0, syn1):
+    file = open(corpus_file, 'rt', encoding='utf8')
+    file_size = os.path.getsize(corpus_file)
     start = file_size / num_process * pid
     end = file_size if pid == num_process - 1 else file_size / num_process * (pid + 1)
 
     start_lr = lr
-    word_count = 0
-    current_epoch = 0
-    while current_epoch < epoch:
-        print('Start [%d epoch] of process %d, lr: %f' % (current_epoch, pid, lr))
-        current_epoch = train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch,
-                                    epoch, win, cbow)
+    current_epoch = 1
+    while current_epoch <= epoch:
+        print(('Start [%d epoch] of process %d, lr: %f' % (current_epoch, pid, lr)), flush=True)
+        current_epoch, lr = train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow)
     file.close()
 
-def train(corpus_file: str, dim: int, min_count: int, num_processes: int, save_path: str, lr: float, win: int,
-          epoch: int, neg=None, cbow=None):
-    vocab = Vocab(corpus_file, min_count)
-    syn0, syn1 = init_embedding(dim, len(vocab))
-
-    table = None
-    if neg:
-        print('Init Negative Sampling')
-        table = UnigramTable(vocab)
-    else:
-        print('Init Hierarchycal Softmax')
-        vocab.encode_huffman()
-
-    print('Begin training')
-    t0 = time.time()
-    pool = Pool(processes=num_processes)
-    file = open(corpus_file, 'rt', encoding='utf8')
-    args = [os.path.getsize(corpus_file), num_processes, file, lr, epoch, vocab, win, cbow, table, neg, dim, syn0, syn1]
-    pids = [[x] for x in range(num_processes)]
-    pool.map(train_process, (a + b for a, b in zip(pids, args)))
-    t1 = time.time()
-    print('\nCompleted training. Time consumption is %.3lf\n', (t1 - t0) / 60)
-
-    Word2vecModel.save(vocab, syn0, save_path)
-    print('Model saved to ' + save_path)

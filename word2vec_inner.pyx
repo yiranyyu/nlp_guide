@@ -10,7 +10,6 @@ from libc.stdlib cimport rand, malloc, free
 from libc.math cimport sin, cos, acos, exp, sqrt, fabs, M_PI
 from multiprocessing import Pool, Value, Array
 
-
 class VocabItem:
     def __init__(self, word: str, int count):
         self.word = word
@@ -195,8 +194,10 @@ def init_embedding(dim, vocab_size):
     syn1 = np.ctypeslib.as_array(syn1)
     return syn0, syn1
 
-def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow) :
+def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow, sample, global_word_count):
     cdef int word_count = 0, last_word_count = 0
+    cdef long long train_words = vocab.word_count, token_count = 0
+    cdef float prob_to_keep, threshold = sample * train_words
     file.seek(start)
     update = np.zeros(dim)
     while file.tell() < end:
@@ -205,6 +206,15 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
 
         sen = vocab.indices(line.split())
         for idx, token in enumerate(sen):
+            word_count += 1
+
+            # under sample frequent words
+            if sample:
+                token_count = vocab[token].count
+                prob_to_keep = (((token_count / threshold) ** 0.5) + 1) * threshold / token_count;
+                if prob_to_keep < np.random.rand():
+                    continue
+
             if word_count % 10000 == 0:
                 global_word_count.value += (word_count - last_word_count)
                 last_word_count = word_count
@@ -249,7 +259,6 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
                         update += g * syn1[target]
                         syn1[target] += g * syn0[context_word]
                     syn0[context_word] += update
-            word_count += 1
     global_word_count.value += (word_count - last_word_count)
     return (current_epoch + 1), lr
 

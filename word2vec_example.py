@@ -10,7 +10,7 @@ from word2vec_inner import sigmoid, Vocab, UnigramTable, init_embedding, train_e
 from model import Word2vecModel
 
 
-def train_process(pid, epoch, vocab, table, cbow, neg, dim, lr, win, num_processes, corpus_file):
+def train_process(pid, epoch, vocab, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample: float):
     # Set file to point to the right chunk of training file
     file = open(corpus_file, 'r')
     start = vocab.bytes / num_processes * pid
@@ -20,7 +20,7 @@ def train_process(pid, epoch, vocab, table, cbow, neg, dim, lr, win, num_process
     current_epoch = 1
     while current_epoch <= epoch:
         print(('Start [%d epoch] of process %d, lr: %f' % (current_epoch, pid, lr)), flush=True)
-        current_epoch, lr = train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow)
+        current_epoch, lr = train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow, sample, global_word_count)
 
     file.close()
 
@@ -29,7 +29,7 @@ def __init_process(*args):
     syn0, syn1, global_word_count = args
 
 def train(corpus_file: str, dim: int, min_count: int, num_processes: int, save_path: str, lr: float, win: int,
-          epoch: int, neg=None, cbow=None):
+          epoch: int, neg=None, cbow=None, sample=None):
     vocab = Vocab(corpus_file, min_count)
     syn0, syn1 = init_embedding(dim, len(vocab))
 
@@ -47,7 +47,7 @@ def train(corpus_file: str, dim: int, min_count: int, num_processes: int, save_p
     pool = Pool(processes=num_processes, initializer=__init_process,
                 initargs=( syn0, syn1, global_word_count))
     pids = [[x] for x in range(num_processes)]
-    args = [epoch, vocab, table, cbow, neg, dim, lr, win, num_processes, corpus_file]
+    args = [epoch, vocab, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample]
     pool.starmap(train_process, [pid + args for pid in pids])
     t1 = time.time()
     print('\nCompleted training. Time consumption is %.3lfm\n' % ((t1 - t0) / 60))
@@ -66,8 +66,10 @@ if __name__ == '__main__':
     parser.add_argument('-window', help='Max window length', dest='win', default=5, type=int)
     parser.add_argument('-min-count', help='Min count for words used to learn <unk>', dest='min_count', default=5, type=int)
     parser.add_argument('-processes', help='Number of processes', dest='num_processes', default=1, type=int)
-    parser.add_argument('-binary', help='1 for output model in binary format, 0 otherwise', dest='binary', default=0, type=int)
+    parser.add_argument('-sample',
+                        help='Set threshold for occurrence of words. Those that paper with higher frequency in the training data will be randomly down-sampled; default is 1e-3, useful range is (0, 1e-5)\n',
+                        dest='sample', default=1e-3, type=float)
     parser.add_argument('-epoch', help='Number of training epochs', dest='epoch', default=1, type=int)
     args = parser.parse_args()
 
-    train(args.training_file, args.dim, args.min_count, args.num_processes, args.model_save_path, args.lr, args.win, args.epoch, args.neg, args.cbow)
+    train(args.training_file, args.dim, args.min_count, args.num_processes, args.model_save_path, args.lr, args.win, args.epoch, args.neg, args.cbow, args.sample)

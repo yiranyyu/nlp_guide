@@ -8,17 +8,17 @@ if __name__ == "__main__":
     data_dir = './data/word2vec'
     cbow = 0
     neg = 5
-    dim = '50'
+    dim = '300'
 
     data_file = '1m_words.txt'
-    model_file = '%s_%s_%s_%s.%s' % (data_file, epoch,('cbow' if cbow else 'skip-gram'), (('neg%d' % neg) if neg else 'softmax'),'model')
+    model_file = '%s_%s_%s_%s_%s.%s' % (data_file, epoch,('cbow' if cbow else 'skip-gram'), (('neg%d' % neg) if neg else 'softmax'),'model')
     data_path = os.path.join(data_dir, data_file)
     model_path = os.path.join(model_dir, model_file)
 
-    print('data path:', os.path.abspath(data_path))
-    print('save path:', os.path.abspath(model_path))
+    print('\nData path:', os.path.abspath(data_path))
+    print('Save path:', os.path.abspath(model_path))
 
-    cmd = ' '.join(['python', './word2vec_example.py',
+    cmd0 = ' '.join(['python', './word2vec_example.py',
                     '-train ', data_path,
                     '-model', model_path,
                     '-processes', nrof_processes,
@@ -26,8 +26,9 @@ if __name__ == "__main__":
                     '-cbow', str(cbow),
 					'-dim', dim,
                     '-negative', str(neg)])
-    os.system(cmd)
 
-    cmd = ' '.join(['python', './evaluate_word2vec_analogy.py',
+    cmd1 = ' '.join(['python', './evaluate_word2vec_analogy.py',
                     '-model', model_path])
+
+    cmd = cmd0 + ' && ' + cmd1
     os.system(cmd)

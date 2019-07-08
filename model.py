@@ -2,8 +2,6 @@ import numpy as np
 import sys
 
 
-# TODO: make a map from <word> to <index_in_matrix> and a map from <index_in_matrix> to <word>
-# use <matrix> of embedding to caculate nearest neighbor
 class Word2vecModel(object):
     def __init__(self, path):
         with open(path, 'rt') as file:

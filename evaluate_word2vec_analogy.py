@@ -5,13 +5,15 @@ from time import time
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    model_path = parser.add_argument('-model', help='Model path', dest='model_path', required=True)
+    parser.add_argument('-model', help='Model path', dest='model_path', required=True)
+    model_path = parser.parse_args().model_path
     start = time()
     log_dir = './log'
     data_dir = './data/word2vec'
     result_dir = './log'
 
-    data_name = '类比_questions-words.txt'
+    data_name = 'analogy_questions_words.txt'
+    model_name = model_path.split('/')[-1]
 
     log_path = path.join(log_dir, model_name) + '.analogy_log_new'
     data_path = path.join(data_dir, data_name)
@@ -44,6 +46,7 @@ if __name__ == "__main__":
             if i and i % 100 == 0:
                 log_file.write('i = %d, current acc = %.3f\n' %
                                (i, hit / (hit + miss)))
-        log_file.write('Finished in %.3fm\n' % ((time() - start) / 60))
-        log_file.write('Acc: %f, hit = %d, miss = %d' %
-                       (hit / (hit + miss), hit, miss))
+        result = 'Evaluate finished in %.3fm\n' % ((time() - start) / 60)
+        result += 'Acc: %f, hit = %d, miss = %d' % (hit / (hit + miss), hit, miss)
+        log_file.write(result)
+    print(result)

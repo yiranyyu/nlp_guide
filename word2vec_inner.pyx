@@ -3,7 +3,6 @@ import pickle
 import math
 import time
 import os
-import argparse
 import warnings
 import struct
 from model import Word2vecModel
@@ -297,25 +296,3 @@ def train(corpus_file: str, dim: int, min_count: int, num_processes: int, save_p
 
     Word2vecModel.save(vocab, syn0, save_path)
     print('Model saved to ' + save_path)
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-train', help='Training file', dest='fi', required=True)
-    parser.add_argument('-model', help='Output model file', dest='fo', required=True)
-    parser.add_argument('-cbow', help='1 for CBOW, 0 for skip-gram', dest='cbow', default=1, type=int)
-    parser.add_argument('-negative',
-                        help='Number of negative examples (>0) for negative sampling, 0 for hierarchical softmax',
-                        dest='neg', default=5, type=int)
-    parser.add_argument('-dim', help='Dimensionality of word embeddings', dest='dim', default=100, type=int)
-    parser.add_argument('-alpha', help='Starting alpha', dest='alpha', default=0.025, type=float)
-    parser.add_argument('-window', help='Max window length', dest='win', default=5, type=int)
-    parser.add_argument('-min-count', help='Min count for words used to learn <unk>', dest='min_count', default=5,
-                        type=int)
-    parser.add_argument('-processes', help='Number of processes', dest='num_processes', default=1, type=int)
-    parser.add_argument('-binary', help='1 for output model in binary format, 0 otherwise', dest='binary', default=0,
-                        type=int)
-    parser.add_argument('-epoch', help='Number of training epochs', dest='epoch', default=1, type=int)
-    args = parser.parse_args()
-
-    # train(args.fi, args.fo, bool(args.cbow), args.neg, args.dim, args.alpha, args.win,
-    #       args.min_count, args.num_processes, bool(args.binary), args.epoch)

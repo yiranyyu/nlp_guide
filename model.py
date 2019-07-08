@@ -8,8 +8,8 @@ class Word2vecModel(object):
             meta = file.readline()
             self.words, self.size = map(int, meta.split())
             self.word_index = {}
-            self.index_word = []
 
+            index_word = []
             embeddings = []
             for line in file:
                 word, *vector = line.split(' ')
@@ -19,10 +19,12 @@ class Word2vecModel(object):
                 if norm:
                     vector = vector / norm
                 self.word_index[word] = len(embeddings)
-                self.index_word.append(word)
+                index_word.append(word)
                 embeddings.append(vector)
-        self.embedding = np.asarray(embeddings)
-        self.kd = KDTree(self.embedding, leaf_size=10)
+        self.embeddings = np.asarray(embeddings)
+        self.index_word = index_word
+        self.kd = KDTree(self.embeddings, leaf_size=40)
+        print('Embedding shape = %s' % str(self.embeddings.shape))
         print('Model init with %d words, embbing_size=%d' %
               (self.words, self.size))
 
@@ -41,7 +43,7 @@ class Word2vecModel(object):
                 file.write('\n')
 
     def __getitem__(self, word: str):
-        return self.embedding[self.word_index[word]]
+        return self.embeddings[self.word_index[word]]
 
     def similarity(self, a: str, b: str):
         vec = self[a] - self[b]
@@ -52,7 +54,7 @@ class Word2vecModel(object):
         return self.nearset_word_of_embedding(vec)
 
     def nearset_word_of_embedding(self, embedding):
-        idx = self.kd.query([embedding], return_distance=False)
+        idx = self.kd.query([embedding], return_distance=False)[0][0]
         return self.index_word[idx]
 
     def analogy(self, a: str, b: str, c: str):
@@ -61,4 +63,20 @@ class Word2vecModel(object):
         norm = np.linalg.norm(d)
         if norm:
             d = d / norm
-        return self.nearset_word_of_embedding(d)
+
+        # rtn = ''
+        # dis = 0
+        # for word, vec in zip(self.index_word, self.embeddings):
+        #     if word in [a, b, c]:
+        #         continue
+        #     cur_dis = np.dot(d, vec)
+        #     if cur_dis > dis:
+        #         dis = cur_dis
+        #         rtn = word
+        # return rtn
+
+        indices = self.kd.query([d], return_distance=False, k=4)[0]
+        for index in indices:
+            word = self.index_word[index]
+            if word not in [a, b, c]:
+                return word

@@ -23,6 +23,7 @@ if __name__ == "__main__":
 
     hit = 0
     miss = 0
+    print('Evaluating model from ' + model_path)
     with open(data_path, 'r') as file, open(log_path, 'at', buffering=1) as log_file, open(result_path, 'wt') as result_file:
         log_file.write('Built model in %fm\n' % ((time() - start) / 60))
         log_file.flush()

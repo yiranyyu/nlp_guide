@@ -13,10 +13,7 @@ from multiprocessing import Pool, Value, Array
 global_word_count = Value('i', 0)
 cdef int last_word_count = 0
 
-cdef class VocabItem:
-    cdef readonly int count
-    cdef readonly str word
-    cdef public list code, path
+class VocabItem:
     def __init__(self, word: str, int count):
         self.word = word
         self.count = count
@@ -27,12 +24,10 @@ cdef class VocabItem:
         return '%s, %d, %s, %s' % (self.word, self.count, self.code, self.path)
 
 
-cdef class Vocab:
-    cdef list vocab
-    cdef dict vocab_index
-    cdef readonly int word_count
+class Vocab:
     def __init__(self, corpus_file: str, min_count: int):
         print("Start learning vocab")
+        t0 = time.time()
         cdef unsigned long long word_count = 0
 
         word_freq = {'</s>': min_count + 1}
@@ -46,6 +41,7 @@ cdef class Vocab:
         cdef int freq, unk_freq = 0
         self.vocab = []
         self.word_count = word_count
+        self.bytes = os.path.getsize(corpus_file)
         for word in word_freq:
             freq = word_freq[word]
             if freq >= min_count:
@@ -54,6 +50,7 @@ cdef class Vocab:
                 unk_freq += freq
         self.vocab.append(VocabItem('<unk>', unk_freq))
         self.__sort_and_init_index()
+        print('Vocab learned in %.3lfm' % ((time.time() - t0) / 60))
         print('Total words in training file: %d' % word_count)
         print('Vocab size: %d' % len(self.vocab))
 
@@ -204,7 +201,7 @@ def init_embedding(dim, vocab_size):
     syn1 = Array(syn1._type_, syn1, lock=False)
     return syn0, syn1
 
-def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow):
+def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow) nogil:
     cdef int word_count = 0
     file.seek(start)
     while file.tell() < end:
@@ -261,7 +258,7 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
     global_word_count.value += (word_count - last_word_count)
     return current_epoch + 1
 
-def train_process(pid, file_size, num_process, file, lr, epoch, vocab, win, cbow, table, neg, dim, syn0, syn1):
+def train_process(pid, file_size, num_process, file, lr, epoch, vocab, win, cbow, table, neg, dim, syn0, syn1) nogil:
     start = file_size / num_process * pid
     end = file_size if pid == num_process - 1 else file_size / num_process * (pid + 1)
 

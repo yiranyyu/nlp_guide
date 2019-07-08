@@ -6,202 +6,202 @@ import time
 import warnings
 
 import numpy as np
-from word2vec_inner import sigmoid
-
+from word2vec_inner import sigmoid, Vocab, UnigramTable, init_embedding
+from model import Word2vecModel
 from multiprocessing import Pool, Value, Array
 
-class VocabItem:
-    def __init__(self, word):
-        self.word = word
-        self.count = 0
-        self.path = None # Path (list of indices) from the root to the word (leaf)
-        self.code = None # Huffman encoding
+# class VocabItem:
+#     def __init__(self, word):
+#         self.word = word
+#         self.count = 0
+#         self.path = None # Path (list of indices) from the root to the word (leaf)
+#         self.code = None # Huffman encoding
 
-class Vocab:
-    def __init__(self, fi, min_count):
-        vocab_items = []
-        vocab_hash = {}
-        word_count = 0
-        fi = open(fi, 'r', encoding='utf8')
+# class Vocab:
+#     def __init__(self, fi, min_count):
+#         vocab_items = []
+#         vocab_hash = {}
+#         word_count = 0
+#         fi = open(fi, 'r', encoding='utf8')
 
-        # Add special tokens <bol> (beginning of line) and <eol> (end of line)
-        for token in ['<bol>', '<eol>']:
-            vocab_hash[token] = len(vocab_items)
-            vocab_items.append(VocabItem(token))
+#         # Add special tokens <bol> (beginning of line) and <eol> (end of line)
+#         for token in ['<bol>', '<eol>']:
+#             vocab_hash[token] = len(vocab_items)
+#             vocab_items.append(VocabItem(token))
 
-        for line in fi:
-            tokens = line.split()
-            for token in tokens:
-                if token not in vocab_hash:
-                    vocab_hash[token] = len(vocab_items)
-                    vocab_items.append(VocabItem(token))
+#         for line in fi:
+#             tokens = line.split()
+#             for token in tokens:
+#                 if token not in vocab_hash:
+#                     vocab_hash[token] = len(vocab_items)
+#                     vocab_items.append(VocabItem(token))
 
-                #assert vocab_items[vocab_hash[token]].word == token, 'Wrong vocab_hash index'
-                vocab_items[vocab_hash[token]].count += 1
-                word_count += 1
+#                 #assert vocab_items[vocab_hash[token]].word == token, 'Wrong vocab_hash index'
+#                 vocab_items[vocab_hash[token]].count += 1
+#                 word_count += 1
 
-#                if word_count % 1_000 == 0:
-#                    sys.stdout.write("\rReading word %d" % word_count)
-#                    sys.stdout.flush()
+# #                if word_count % 1_000 == 0:
+# #                    sys.stdout.write("\rReading word %d" % word_count)
+# #                    sys.stdout.flush()
 
-            # Add special tokens <bol> (beginning of line) and <eol> (end of line)
-            vocab_items[vocab_hash['<bol>']].count += 1
-            vocab_items[vocab_hash['<eol>']].count += 1
-            word_count += 2
+#             # Add special tokens <bol> (beginning of line) and <eol> (end of line)
+#             vocab_items[vocab_hash['<bol>']].count += 1
+#             vocab_items[vocab_hash['<eol>']].count += 1
+#             word_count += 2
 
-        self.bytes = fi.tell()
-        self.vocab_items = vocab_items         # List of VocabItem objects
-        self.vocab_hash = vocab_hash           # Mapping from each token to its index in vocab
-        self.word_count = word_count           # Total number of words in train file
+#         self.bytes = fi.tell()
+#         self.vocab_items = vocab_items         # List of VocabItem objects
+#         self.vocab_hash = vocab_hash           # Mapping from each token to its index in vocab
+#         self.word_count = word_count           # Total number of words in train file
 
-        # Add special token <unk> (unknown),
-        # merge words occurring less than min_count into <unk>, and
-        # sort vocab in descending order by frequency in train file
-        self.__sort(min_count)
+#         # Add special token <unk> (unknown),
+#         # merge words occurring less than min_count into <unk>, and
+#         # sort vocab in descending order by frequency in train file
+#         self.__sort(min_count)
 
-        #assert self.word_count == sum([t.count for t in self.vocab_items]), 'word_count and sum of t.count do not agree'
-        print('Total words in training file: %d' % self.word_count)
-        print('Total bytes in training file: %d' % self.bytes)
-        print('Vocab size: %d' % len(self))
+#         #assert self.word_count == sum([t.count for t in self.vocab_items]), 'word_count and sum of t.count do not agree'
+#         print('Total words in training file: %d' % self.word_count)
+#         print('Total bytes in training file: %d' % self.bytes)
+#         print('Vocab size: %d' % len(self))
 
-    def __getitem__(self, i):
-        return self.vocab_items[i]
+#     def __getitem__(self, i):
+#         return self.vocab_items[i]
 
-    def __len__(self):
-        return len(self.vocab_items)
+#     def __len__(self):
+#         return len(self.vocab_items)
 
-    def __iter__(self):
-        return iter(self.vocab_items)
+#     def __iter__(self):
+#         return iter(self.vocab_items)
 
-    def __contains__(self, key):
-        return key in self.vocab_hash
+#     def __contains__(self, key):
+#         return key in self.vocab_hash
 
-    def __sort(self, min_count):
-        tmp = []
-        tmp.append(VocabItem('<unk>'))
-        unk_hash = 0
+#     def __sort(self, min_count):
+#         tmp = []
+#         tmp.append(VocabItem('<unk>'))
+#         unk_hash = 0
 
-        count_unk = 0
-        for token in self.vocab_items:
-            if token.count < min_count:
-                count_unk += 1
-                tmp[unk_hash].count += token.count
-            else:
-                tmp.append(token)
+#         count_unk = 0
+#         for token in self.vocab_items:
+#             if token.count < min_count:
+#                 count_unk += 1
+#                 tmp[unk_hash].count += token.count
+#             else:
+#                 tmp.append(token)
 
-        tmp.sort(key=lambda token : token.count, reverse=True)
+#         tmp.sort(key=lambda token : token.count, reverse=True)
 
-        # Update vocab_hash
-        vocab_hash = {}
-        for i, token in enumerate(tmp):
-            vocab_hash[token.word] = i
+#         # Update vocab_hash
+#         vocab_hash = {}
+#         for i, token in enumerate(tmp):
+#             vocab_hash[token.word] = i
 
-        self.vocab_items = tmp
-        self.vocab_hash = vocab_hash
+#         self.vocab_items = tmp
+#         self.vocab_hash = vocab_hash
 
-        print()
-        print('Unknown vocab size:', count_unk)
+#         print()
+#         print('Unknown vocab size:', count_unk)
 
-    def indices(self, tokens):
-        return [self.vocab_hash[token] if token in self else self.vocab_hash['<unk>'] for token in tokens]
+#     def indices(self, tokens):
+#         return [self.vocab_hash[token] if token in self else self.vocab_hash['<unk>'] for token in tokens]
 
-    def encode_huffman(self):
-        # Build a Huffman tree
-        vocab_size = len(self)
-        count = [t.count for t in self] + [1e15] * (vocab_size - 1)
-        parent = [0] * (2 * vocab_size - 2)
-        binary = [0] * (2 * vocab_size - 2)
+#     def encode_huffman(self):
+#         # Build a Huffman tree
+#         vocab_size = len(self)
+#         count = [t.count for t in self] + [1e15] * (vocab_size - 1)
+#         parent = [0] * (2 * vocab_size - 2)
+#         binary = [0] * (2 * vocab_size - 2)
 
-        pos1 = vocab_size - 1
-        pos2 = vocab_size
+#         pos1 = vocab_size - 1
+#         pos2 = vocab_size
 
-        for i in range(vocab_size - 1):
-            # Find min1
-            if pos1 >= 0:
-                if count[pos1] < count[pos2]:
-                    min1 = pos1
-                    pos1 -= 1
-                else:
-                    min1 = pos2
-                    pos2 += 1
-            else:
-                min1 = pos2
-                pos2 += 1
+#         for i in range(vocab_size - 1):
+#             # Find min1
+#             if pos1 >= 0:
+#                 if count[pos1] < count[pos2]:
+#                     min1 = pos1
+#                     pos1 -= 1
+#                 else:
+#                     min1 = pos2
+#                     pos2 += 1
+#             else:
+#                 min1 = pos2
+#                 pos2 += 1
 
-            # Find min2
-            if pos1 >= 0:
-                if count[pos1] < count[pos2]:
-                    min2 = pos1
-                    pos1 -= 1
-                else:
-                    min2 = pos2
-                    pos2 += 1
-            else:
-                min2 = pos2
-                pos2 += 1
+#             # Find min2
+#             if pos1 >= 0:
+#                 if count[pos1] < count[pos2]:
+#                     min2 = pos1
+#                     pos1 -= 1
+#                 else:
+#                     min2 = pos2
+#                     pos2 += 1
+#             else:
+#                 min2 = pos2
+#                 pos2 += 1
 
-            count[vocab_size + i] = count[min1] + count[min2]
-            parent[min1] = vocab_size + i
-            parent[min2] = vocab_size + i
-            binary[min2] = 1
+#             count[vocab_size + i] = count[min1] + count[min2]
+#             parent[min1] = vocab_size + i
+#             parent[min2] = vocab_size + i
+#             binary[min2] = 1
 
-        # Assign binary code and path pointers to each vocab word
-        root_idx = 2 * vocab_size - 2
-        for i, token in enumerate(self):
-            path = [] # List of indices from the leaf to the root
-            code = [] # Binary Huffman encoding from the leaf to the root
+#         # Assign binary code and path pointers to each vocab word
+#         root_idx = 2 * vocab_size - 2
+#         for i, token in enumerate(self):
+#             path = [] # List of indices from the leaf to the root
+#             code = [] # Binary Huffman encoding from the leaf to the root
 
-            node_idx = i
-            while node_idx < root_idx:
-                if node_idx >= vocab_size: path.append(node_idx)
-                code.append(binary[node_idx])
-                node_idx = parent[node_idx]
-            path.append(root_idx)
+#             node_idx = i
+#             while node_idx < root_idx:
+#                 if node_idx >= vocab_size: path.append(node_idx)
+#                 code.append(binary[node_idx])
+#                 node_idx = parent[node_idx]
+#             path.append(root_idx)
 
-            # These are path and code from the root to the leaf
-            token.path = [j - vocab_size for j in path[::-1]]
-            token.code = code[::-1]
+#             # These are path and code from the root to the leaf
+#             token.path = [j - vocab_size for j in path[::-1]]
+#             token.code = code[::-1]
 
-class UnigramTable:
-    """
-    A list of indices of tokens in the vocab following a power law distribution,
-    used to draw negative samples.
-    """
-    def __init__(self, vocab):
-        vocab_size = len(vocab)
-        power = 0.75
-        norm = sum([math.pow(t.count, power) for t in vocab]) # Normalizing constant
+# class UnigramTable:
+#     """
+#     A list of indices of tokens in the vocab following a power law distribution,
+#     used to draw negative samples.
+#     """
+#     def __init__(self, vocab):
+#         vocab_size = len(vocab)
+#         power = 0.75
+#         norm = sum([math.pow(t.count, power) for t in vocab]) # Normalizing constant
 
-        table_size = int(1e8) # Length of the unigram table
-        table = np.zeros(table_size, dtype=np.uint32)
+#         table_size = int(1e8) # Length of the unigram table
+#         table = np.zeros(table_size, dtype=np.uint32)
 
-        print('Filling unigram table')
-        p = 0 # Cumulative probability
-        i = 0
-        for j, unigram in enumerate(vocab):
-            p += float(math.pow(unigram.count, power))/norm
-            while i < table_size and float(i) / table_size < p:
-                table[i] = j
-                i += 1
-        self.table = table
-        print('End filling unigram talbe')
+#         print('Filling unigram table')
+#         p = 0 # Cumulative probability
+#         i = 0
+#         for j, unigram in enumerate(vocab):
+#             p += float(math.pow(unigram.count, power))/norm
+#             while i < table_size and float(i) / table_size < p:
+#                 table[i] = j
+#                 i += 1
+#         self.table = table
+#         print('End filling unigram talbe')
 
-    def sample(self, count):
-        indices = np.random.randint(low=0, high=len(self.table), size=count)
-        return [self.table[i] for i in indices]
+#     def sample(self, count):
+#         indices = np.random.randint(low=0, high=len(self.table), size=count)
+#         return [self.table[i] for i in indices]
 
-def init_net(dim, vocab_size):
-    # Init syn0 with random numbers from a uniform distribution on the interval [-0.5, 0.5]/dim
-    tmp = np.random.uniform(low=-0.5/dim, high=0.5/dim, size=(vocab_size, dim))
-    syn0 = np.ctypeslib.as_ctypes(tmp)
-    syn0 = Array(syn0._type_, syn0, lock=False)
+# def init_embedding(dim, vocab_size):
+#     # Init syn0 with random numbers from a uniform distribution on the interval [-0.5, 0.5]/dim
+#     tmp = np.random.uniform(low=-0.5/dim, high=0.5/dim, size=(vocab_size, dim))
+#     syn0 = np.ctypeslib.as_ctypes(tmp)
+#     syn0 = Array(syn0._type_, syn0, lock=False)
 
-    # Init syn1 with zeros
-    tmp = np.zeros(shape=(vocab_size, dim))
-    syn1 = np.ctypeslib.as_ctypes(tmp)
-    syn1 = Array(syn1._type_, syn1, lock=False)
+#     # Init syn1 with zeros
+#     tmp = np.zeros(shape=(vocab_size, dim))
+#     syn1 = np.ctypeslib.as_ctypes(tmp)
+#     syn1 = Array(syn1._type_, syn1, lock=False)
 
-    return (syn0, syn1)
+#     return (syn0, syn1)
 
 def train_process(pid):
     # Set fi to point to the right chunk of training file
@@ -227,7 +227,7 @@ def train_process(pid):
                 continue
 
             # Init sent, a list of indices of words in line
-            sent = vocab.indices(['<bol>'] + line.split() + ['<eol>'])
+            sent = vocab.indices(line.split())
 
             for sent_pos, token in enumerate(sent):
                 if word_count % 10000 == 0:
@@ -307,27 +307,27 @@ def train_process(pid):
     # sys.stdout.flush()
     fi.close()
 
-def save(vocab, syn0, fo, binary):
-    print('Saving model to', fo)
-    dim = len(syn0[0])
-    if binary:
-        fo = open(fo, 'wb')
-        fo.write('%d %d\n' % (len(syn0), dim))
-        fo.write('\n')
-        for token, vector in zip(vocab, syn0):
-            fo.write('%s ' % token.word)
-            for s in vector:
-                fo.write(struct.pack('f', s))
-            fo.write('\n')
-    else:
-        fo = open(fo, 'w')
-        fo.write('%d %d\n' % (len(syn0), dim))
-        for token, vector in zip(vocab, syn0):
-            word = token.word
-            vector_str = ' '.join([str(s) for s in vector])
-            fo.write('%s %s\n' % (word, vector_str))
+# def save(vocab, syn0, fo, binary):
+#     print('Saving model to', fo)
+#     dim = len(syn0[0])
+#     if binary:
+#         fo = open(fo, 'wb')
+#         fo.write('%d %d\n' % (len(syn0), dim))
+#         fo.write('\n')
+#         for token, vector in zip(vocab, syn0):
+#             fo.write('%s ' % token.word)
+#             for s in vector:
+#                 fo.write(struct.pack('f', s))
+#             fo.write('\n')
+#     else:
+#         fo = open(fo, 'w')
+#         fo.write('%d %d\n' % (len(syn0), dim))
+#         for token, vector in zip(vocab, syn0):
+#             word = token.word
+#             vector_str = ' '.join([str(s) for s in vector])
+#             fo.write('%s %s\n' % (word, vector_str))
 
-    fo.close()
+#     fo.close()
 
 def __init_process(*args):
     global epoch, vocab, syn0, syn1, table, cbow, neg, dim, starting_alpha
@@ -345,7 +345,7 @@ def train(fi, fo, cbow, neg, dim, alpha, win, min_count, num_processes, binary, 
     vocab = Vocab(fi, min_count)
 
     # Init net
-    syn0, syn1 = init_net(dim, len(vocab))
+    syn0, syn1 = init_embedding(dim, len(vocab))
 
     global_word_count = Value('i', 0)
     table = None
@@ -368,7 +368,7 @@ def train(fi, fo, cbow, neg, dim, alpha, win, min_count, num_processes, binary, 
     print('Completed training. Training took', (t1 - t0) / 60, 'minutes')
 
     # Save model to file
-    save(vocab, syn0, fo, binary)
+    Word2vecModel.save(vocab, syn0, fo)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

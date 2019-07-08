@@ -1,22 +1,28 @@
 import numpy as np
 import sys
-
+from sklearn.neighbors import KDTree
 
 class Word2vecModel(object):
     def __init__(self, path):
         with open(path, 'rt') as file:
             meta = file.readline()
             self.words, self.size = map(int, meta.split())
+            self.word_index = {}
+            self.index_word = []
 
-            self.embedding = {}
+            embeddings = []
             for line in file:
                 word, *vector = line.split(' ')
                 vector = [float(item) for item in vector]
                 vector = np.asarray(vector, dtype=np.float)
                 norm = np.linalg.norm(vector)
                 if norm:
-                    vector = vector / np.linalg.norm(vector)
-                self.embedding[word] = vector
+                    vector = vector / norm
+                self.word_index[word] = len(embeddings)
+                self.index_word.append(word)
+                embeddings.append(vector)
+        self.embedding = np.asarray(embeddings)
+        self.kd = KDTree(self.embedding, leaf_size=10)
         print('Model init with %d words, embbing_size=%d' %
               (self.words, self.size))
 
@@ -35,44 +41,24 @@ class Word2vecModel(object):
                 file.write('\n')
 
     def __getitem__(self, word: str):
-        return self.embedding[word]
+        return self.embedding[self.word_index[word]]
 
     def similarity(self, a: str, b: str):
         vec = self[a] - self[b]
         return np.linalg.norm(vec)
 
     def nearest_word(self, word: str):
-        dist = 0
-        nearest = ''
-        for that in self.embedding.keys():
-            if that == word:
-                continue
-            curr = self.similarity(word, that)
-            if curr > dist:
-                dist = curr
-                nearest = that
-        return nearest
+        vec = self[word]
+        return self.nearset_word_of_embedding(vec)
 
     def nearset_word_of_embedding(self, embedding):
-        dist = 0
-        nearest = ''
-        for word in self.embedding.keys():
-            curr = self[word].dot(embedding)
-            if curr > dist:
-                dist = curr
-                nearest = word
-        return nearest
+        idx = self.kd.query([embedding], return_distance=False)
+        return self.index_word[idx]
 
     def analogy(self, a: str, b: str, c: str):
         #  d= c + b - a
         d = self[c] - (self[a] - self[b])
-        dist = 0
-        nearest = ''
-        for word in self.embedding.keys():
-            if word in [a, b, c]:
-                continue
-            curr = self[word].dot(d)
-            if curr > dist:
-                dist = curr
-                nearest = word
-        return nearest
+        norm = np.linalg.norm(d)
+        if norm:
+            d = d / norm
+        return self.nearset_word_of_embedding(d)

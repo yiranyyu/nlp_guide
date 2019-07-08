@@ -7,7 +7,7 @@ if __name__ == "__main__":
     model_dir = './model'
     data_dir = './data/word2vec'
     cbow = 0
-    neg = 5
+    neg = 0
     dim = '50'
     sample = '1e-3'
 

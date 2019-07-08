@@ -12,7 +12,7 @@ class Word2vecModel(object):
             index_word = []
             embeddings = []
             for line in file:
-                word, *vector = line.split(' ')
+                word, *vector = line.strip().split(' ')
                 vector = [float(item) for item in vector]
                 vector = np.asarray(vector, dtype=np.float)
                 norm = np.linalg.norm(vector)

@@ -5,6 +5,7 @@ import time
 import os
 import warnings
 import struct
+from scipy.linalg.blas import saxpy
 from model import Word2vecModel
 from libc.stdlib cimport rand, malloc, free
 from libc.math cimport sin, cos, acos, exp, sqrt, fabs, M_PI
@@ -229,7 +230,7 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
 
             # CBOW
             if cbow:
-                context_vector = np.mean(np.asarray(syn0[x] for x in context), axis=0)
+                context_vector = np.mean(np.asarray([syn0[x] for x in context]), axis=0)
                 update.fill(0)
                 if neg:
                     targets = [(token, 1)] + [(target, 0) for target in table.sample(neg)]
@@ -239,8 +240,10 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
                     z = np.dot(context_vector, syn1[target])
                     p = sigmoid(z)
                     g = lr * (label - p)
-                    update += g * syn1[target]
-                    syn1[target] += g * context_vector
+#                    update += g * syn1[target]
+#                    syn1[target] += g * context_vector
+                    update = saxpy(syn1[target], update, a=g)
+                    syn1[target] = saxpy(context_vector, syn1[target], a=g)
                 for word in context:
                     syn0[word] += update
 
@@ -256,8 +259,10 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
                         z = np.dot(syn0[context_word], syn1[target])
                         p = sigmoid(z)
                         g = lr * (label - p)
-                        update += g * syn1[target]
-                        syn1[target] += g * syn0[context_word]
+#                        update += g * syn1[target]
+#                        syn1[target] += g * syn0[context_word]
+                        update = saxpy(syn1[target], update, a=g)
+                        syn1[target] = saxpy(syn0[context_word], syn1[target], a=g)
                     syn0[context_word] += update
     global_word_count.value += (word_count - last_word_count)
     return (current_epoch + 1), lr

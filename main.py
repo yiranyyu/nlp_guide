@@ -20,7 +20,7 @@ if __name__ == "__main__":
     print('\nData path:', os.path.abspath(data_path))
     print('Save path:', os.path.abspath(model_path))
 
-    cmd0 = ' '.join(['python', './word2vec_example.py',
+    cmd0 = ' '.join(['python', './word2vec.py',
                     '-train ', data_path,
                     '-model', model_path,
                     '-processes', nrof_processes,

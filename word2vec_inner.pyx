@@ -16,7 +16,7 @@ class VocabItem:
         self.word = word
         self.count = count
         self.code = None
-        self.path = None
+        self.path = None    # it's faster to use path and code as list rather than numpy_array
 
     def __str__(self):
         return '%s, %d, %s, %s' % (self.word, self.count, self.code, self.path)
@@ -176,7 +176,7 @@ for i in range(exp_table_size):
     exp_table[i] = exp((i / float(exp_table_size) * 2 - 1) * MAX_EXP);  # Precompute the exp() table
     exp_table[i] = exp_table[i] / (exp_table[i] + 1);  # Precompute f(x) = x / (x + 1)
 
-cpdef double sigmoid(float z):
+cpdef float sigmoid(float z):
     if z > MAX_EXP:
         return 1.0
     elif z < -MAX_EXP:
@@ -194,12 +194,12 @@ def init_embedding(dim, vocab_size):
     syn1 = Array(syn1._type_, syn1, lock=False)
     return syn0, syn1
 
-def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow, sample, global_word_count):
-    cdef int word_count = 0, last_word_count = 0
+def train_epoch(file, start, end, vocab, float lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow, float sample, global_word_count):
+    cdef int word_count = 0, last_word_count = 0, target, word, context_word
     cdef long long train_words = vocab.word_count, token_count = 0
-    cdef float prob_to_keep, threshold = sample * train_words
+    cdef float prob_to_keep, threshold = sample * train_words, p, label, g
     file.seek(start)
-    update = np.zeros(dim)
+    theta = np.zeros(dim)
     while file.tell() < end:
         line = file.readline().strip()
         if not line: continue
@@ -211,7 +211,8 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
             # under sample frequent words
             if sample:
                 token_count = vocab[token].count
-                prob_to_keep = (((token_count / threshold) ** 0.5) + 1) * threshold / token_count;
+                p = threshold / token_count
+                prob_to_keep = (p ** 0.5) + p
                 if prob_to_keep < np.random.rand():
                     continue
 
@@ -219,7 +220,7 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
                 global_word_count.value += (word_count - last_word_count)
                 last_word_count = word_count
 
-                # update lr
+                # theta lr
                 lr = start_lr * (1 - float(global_word_count.value) / (epoch * vocab.word_count + 1))
                 lr = max(lr, start_lr * 0.0001)
             current_win = np.random.randint(1, win + 1)
@@ -230,38 +231,61 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
             # CBOW
             if cbow:
                 context_vector = np.mean(np.asarray([syn0[x] for x in context]), axis=0)
-                update.fill(0)
+                theta.fill(0)
                 if neg:
-                    targets = [(token, 1)] + [(target, 0) for target in table.sample(neg)]
+                    # pos sample
+                    x = syn1[token]
+                    p = sigmoid(np.dot(context_vector, x))
+                    g = lr * (1 - p)
+                    theta = saxpy(x, theta, a=g)
+                    syn1[token] = saxpy(context_vector, x, a=g)
+
+                    # neg sample
+                    neg_samples = table.sample(neg)
+                    for target in neg_samples:
+                        x = syn1[target]
+                        p = sigmoid(np.dot(context_vector, x))
+                        g = lr * (-p)
+                        theta = saxpy(x, theta, a=g)
+                        syn1[target] = saxpy(context_vector, x, a=g)
                 else:
                     targets = zip(vocab[token].path, vocab[token].code)
-                for target, label in targets:
-                    z = np.dot(context_vector, syn1[target])
-                    p = sigmoid(z)
-                    g = lr * (label - p)
-#                    update += g * syn1[target]
-#                    syn1[target] += g * context_vector
-                    update = saxpy(syn1[target], update, a=g)
-                    syn1[target] = saxpy(context_vector, syn1[target], a=g)
+                    for target, label in targets:
+                        x = syn1[target]
+                        p = sigmoid(np.dot(context_vector, x))
+                        g = lr * (label - p)
+                        theta = saxpy(x, theta, a=g)
+                        syn1[target] = saxpy(context_vector, x, a=g)
                 for word in context:
-                    syn0[word] += update
+                    syn0[word] = saxpy(theta, syn0[word], a=1)
 
             # Skip-gram
             else:
                 for context_word in context:
-                    update.fill(0)
+                    theta.fill(0)
                     if neg:
-                        targets = [(token, 1)] + [(target, 0) for target in table.sample(neg)]
+                        # pos sample
+                        x = syn1[token]
+                        p = sigmoid(np.dot(syn0[context_word], x))
+                        g = lr * (1 - p)
+                        theta = saxpy(x, theta, a=g)
+                        syn1[token] = saxpy(syn0[context_word], x, a=g)
+
+                        # neg sample
+                        neg_samples = table.sample(neg)
+                        for target in neg_samples:
+                            x = syn1[target]
+                            p = sigmoid(np.dot(syn0[context_word], x))
+                            g = lr * (-p)
+                            theta = saxpy(x, theta, a=g)
+                            syn1[target] = saxpy(syn0[context_word], x, a=g)
                     else:
                         targets = zip(vocab[token].path, vocab[token].code)
-                    for target, label in targets:
-                        z = np.dot(syn0[context_word], syn1[target])
-                        p = sigmoid(z)
-                        g = lr * (label - p)
-#                        update += g * syn1[target]
-#                        syn1[target] += g * syn0[context_word]
-                        update = saxpy(syn1[target], update, a=g)
-                        syn1[target] = saxpy(syn0[context_word], syn1[target], a=g)
-                    syn0[context_word] += update
-    global_word_count.value += (word_count - last_word_count)
+                        for target, label in targets:
+                            x = syn1[target]
+                            p = sigmoid(np.dot(syn0[context_word], x))
+                            g = lr * (label - p)
+                            theta = saxpy(x, theta, a=g)
+                            syn1[target] = saxpy(syn0[context_word], x, a=g)
+                    syn0[context_word] = saxpy(theta, syn0[context_word], a=1)
     return (current_epoch + 1), lr

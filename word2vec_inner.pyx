@@ -190,9 +190,6 @@ def init_embedding(dim, vocab_size):
     tmp = np.zeros(shape=(vocab_size, dim))
     syn1 = np.ctypeslib.as_ctypes(tmp)
     syn1 = Array(syn1._type_, syn1, lock=False)
-
-    syn0 = np.ctypeslib.as_array(syn0)
-    syn1 = np.ctypeslib.as_array(syn1)
     return syn0, syn1
 
 def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow, sample, global_word_count):
@@ -266,17 +263,3 @@ def train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, sy
                     syn0[context_word] += update
     global_word_count.value += (word_count - last_word_count)
     return (current_epoch + 1), lr
-
-def train_process(pid, corpus_file, num_process, lr, epoch, vocab, win, cbow, table, neg, dim, syn0, syn1):
-    file = open(corpus_file, 'rt', encoding='utf8')
-    file_size = os.path.getsize(corpus_file)
-    start = file_size / num_process * pid
-    end = file_size if pid == num_process - 1 else file_size / num_process * (pid + 1)
-
-    start_lr = lr
-    current_epoch = 1
-    while current_epoch <= epoch:
-        print(('Start [%d epoch] of process %d, lr: %f' % (current_epoch, pid, lr)), flush=True)
-        current_epoch, lr = train_epoch(file, start, end, vocab, lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow)
-    file.close()
-

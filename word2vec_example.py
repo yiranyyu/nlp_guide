@@ -2,6 +2,7 @@ import argparse
 import math
 import struct
 import sys
+import os
 import time
 import warnings
 import numpy as np
@@ -10,11 +11,12 @@ from word2vec_inner import sigmoid, Vocab, UnigramTable, init_embedding, train_e
 from model import Word2vecModel
 
 
-def train_process(pid, epoch, vocab, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample: float):
+def train_process(pid, epoch, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample: float):
     # Set file to point to the right chunk of training file
     file = open(corpus_file, 'r')
-    start = vocab.bytes / num_processes * pid
-    end = vocab.bytes if pid == num_processes - 1 else vocab.bytes / num_processes * (pid + 1)
+    file_size = os.path.getsize(corpus_file)
+    start = file_size / num_processes * pid
+    end = file_size if pid == num_processes - 1 else file_size / num_processes * (pid + 1)
 
     start_lr = lr
     current_epoch = 1
@@ -25,8 +27,11 @@ def train_process(pid, epoch, vocab, table, cbow, neg, dim, lr, win, num_process
     file.close()
 
 def __init_process(*args):
-    global syn0, syn1, global_word_count
-    syn0, syn1, global_word_count = args
+    global syn0, syn1, global_word_count, vocab
+    syn0, syn1, global_word_count, vocab = args
+    syn0 = np.ctypeslib.as_array(syn0)
+    syn1 = np.ctypeslib.as_array(syn1)
+
 
 def train(corpus_file: str, dim: int, min_count: int, num_processes: int, save_path: str, lr: float, win: int,
           epoch: int, neg=None, cbow=None, sample=None):
@@ -45,9 +50,9 @@ def train(corpus_file: str, dim: int, min_count: int, num_processes: int, save_p
     print('Begin training')
     t0 = time.time()
     pool = Pool(processes=num_processes, initializer=__init_process,
-                initargs=( syn0, syn1, global_word_count))
+                initargs=(syn0, syn1, global_word_count, vocab))
     pids = [[x] for x in range(num_processes)]
-    args = [epoch, vocab, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample]
+    args = [epoch, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample]
     pool.starmap(train_process, [pid + args for pid in pids])
     t1 = time.time()
     print('\nCompleted training. Time consumption is %.3lfm\n' % ((t1 - t0) / 60))

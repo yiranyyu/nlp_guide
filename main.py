@@ -3,16 +3,17 @@ import os
 
 if __name__ == "__main__":
     epoch = '5'
-    nrof_processes = '4'
+    nrof_processes = '11'
     model_dir = './model'
     data_dir = './data/word2vec'
     cbow = 0
+    lr = '0.025'
     neg = 0
-    dim = '50'
-    sample = '1e-3'
+    dim = '300'
+    sample = '1e-5'
 
-    data_file = '1m_words.txt'
-    model_file = '%s_%s_%s_%s_%s_%s.%s' % (data_file, epoch, dim, ('cbow' if cbow else 'skip-gram'), (('neg%d' % neg) if neg else 'softmax'), sample, 'model')
+    data_file = 'train.txt'
+    model_file = '%s_%s_%s_%s_%s_%s_lr=%s.%s' % (data_file, epoch, dim, ('cbow' if cbow else 'skip-gram'), (('neg%d' % neg) if neg else 'softmax'), sample, lr, 'model')
     data_path = os.path.join(data_dir, data_file)
     model_path = os.path.join(model_dir, model_file)
 
@@ -27,7 +28,8 @@ if __name__ == "__main__":
                     '-cbow', str(cbow),
 					'-dim', dim,
                     '-negative', str(neg),
-                    '-sample', sample])
+                    '-sample', sample,
+                    '-lr', lr])
 
     cmd1 = ' '.join(['python', './evaluate_word2vec_analogy.py',
                     '-model', model_path])

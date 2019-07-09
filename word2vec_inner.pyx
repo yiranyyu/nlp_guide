@@ -134,7 +134,9 @@ class Vocab:
             path.append(root_idx)
 
             # reverse path and code to make it as from root to leaf
-            # TODO: why subtracting vocab_size
+            # why subtracting vocab_size: index in path is index of no-leaf node
+            # which is in range [vocab_size, 2 * vocab_size - 2), so result is
+            # in range[0, vocab - 2)
             token.path = [i - vocab_size for i in path[::-1]]
             token.code = code[::-1]
 

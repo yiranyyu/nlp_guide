@@ -11,9 +11,8 @@ from word2vec_inner import sigmoid, Vocab, UnigramTable, init_embedding, train_e
 from model import Word2vecModel
 
 
-def train_process(pid, epoch, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample: float):
+def train_process(pid, epoch, cbow, neg, dim, lr, win, num_processes, corpus_file, sample: float):
     # Set file to point to the right chunk of training file
-    file = open(corpus_file, 'r')
     file_size = os.path.getsize(corpus_file)
     start = file_size / num_processes * pid
     end = file_size if pid == num_processes - 1 else file_size / num_processes * (pid + 1)
@@ -27,8 +26,9 @@ def train_process(pid, epoch, table, cbow, neg, dim, lr, win, num_processes, cor
     file.close()
 
 def __init_process(*args):
-    global syn0, syn1, global_word_count, vocab
-    syn0, syn1, global_word_count, vocab = args
+    global syn0, syn1, global_word_count, vocab, file, table
+    syn0, syn1, global_word_count, vocab, corpus_file, table = args
+    file = open(corpus_file, 'r')
     syn0 = np.ctypeslib.as_array(syn0)
     syn1 = np.ctypeslib.as_array(syn1)
 
@@ -50,9 +50,9 @@ def train(corpus_file: str, dim: int, min_count: int, num_processes: int, save_p
     print('Begin training')
     t0 = time.time()
     pool = Pool(processes=num_processes, initializer=__init_process,
-                initargs=(syn0, syn1, global_word_count, vocab))
+                initargs=(syn0, syn1, global_word_count, vocab, corpus_file, table))
     pids = [[x] for x in range(num_processes)]
-    args = [epoch, table, cbow, neg, dim, lr, win, num_processes, corpus_file, sample]
+    args = [epoch, cbow, neg, dim, lr, win, num_processes, corpus_file, sample]
     pool.starmap(train_process, [pid + args for pid in pids])
     t1 = time.time()
     print('\nCompleted training. Time consumption is %.3lfm\n' % ((t1 - t0) / 60))

@@ -3,7 +3,7 @@ import os
 
 if __name__ == "__main__":
     epoch = '5'
-    nrof_processes = '11'
+    nrof_processes = '10'
     model_dir = './model'
     data_dir = './data/word2vec'
     cbow = 1
@@ -12,7 +12,7 @@ if __name__ == "__main__":
     dim = '300'
     sample = '1e-5'
 
-    data_file = '250m_words.txt'
+    data_file = 'train.txt'
     model_file = '%s_%s_%s_%s_%s_%s_lr=%s.%s' % (data_file, epoch, dim, ('cbow' if cbow else 'skip-gram'), (('neg%d' % neg) if neg else 'softmax'), sample, lr, 'model')
     data_path = os.path.join(data_dir, data_file)
     model_path = os.path.join(model_dir, model_file)

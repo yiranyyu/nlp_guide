@@ -1,9 +1,11 @@
 import numpy as np
 import sys
+import time
 from sklearn.neighbors import KDTree
 
 class Word2vecModel(object):
     def __init__(self, path):
+        t0 = time.time()
         with open(path, 'rt') as file:
             meta = file.readline()
             self.words, self.size = map(int, meta.split())
@@ -23,10 +25,10 @@ class Word2vecModel(object):
                 embeddings.append(vector)
         self.embeddings = np.asarray(embeddings)
         self.index_word = index_word
-        self.kd = KDTree(self.embeddings, leaf_size=40)
+        # self.kd = KDTree(self.embeddings, leaf_size=40)
         print('Embedding shape = %s' % str(self.embeddings.shape))
-        print('Model init with %d words, embbing_size=%d' %
-              (self.words, self.size))
+        print('Model init with %d words, embbing_size=%d, in %.3lfm' %
+              (self.words, self.size, (time.time() - t0) / 60))
 
     @staticmethod
     def save(vocab, syn0, path: str):
@@ -45,9 +47,17 @@ class Word2vecModel(object):
     def __getitem__(self, word: str):
         return self.embeddings[self.word_index[word]]
 
+    def get_normalized_vector(self, word: str):
+        vec = self[word]
+        norm = np.linalg.norm(vec)
+        if norm:
+            vec = vec / norm
+        return vec
+
     def similarity(self, a: str, b: str):
-        vec = self[a] - self[b]
-        return np.linalg.norm(vec)
+        a = self.get_normalized_vector(a)
+        b = self.get_normalized_vector(b)
+        return np.dot(a, b)
 
     def nearest_word(self, word: str):
         vec = self[word]

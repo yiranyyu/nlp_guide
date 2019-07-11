@@ -194,14 +194,14 @@ def init_embedding(dim, vocab_size):
     syn1 = Array(syn1._type_, syn1, lock=False)
     return syn0, syn1
 
-def train_epoch(file, start, end, vocab, float lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow, float sample, global_word_count):
+def train_epoch(file, start, end, vocab, float lr, start_lr, table, neg, dim, syn0, syn1, current_epoch, epoch, win, cbow, float sample, global_word_count, batch_size_in_character):
     cdef int word_count = 0, last_word_count = 0, target, word, context_word
     cdef long long train_words = vocab.word_count, token_count = 0
     cdef float prob_to_keep, threshold = sample * train_words, p, label, g
     file.seek(start)
     theta = np.zeros(dim)
     while file.tell() < end:
-        line = file.readline().strip()
+        line = file.read(batch_size_in_character)
         if not line: continue
 
         sen = vocab.indices(line.split())

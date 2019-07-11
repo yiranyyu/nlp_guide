@@ -25,7 +25,7 @@ class Word2vecModel(object):
                 embeddings.append(vector)
         self.embeddings = np.asarray(embeddings)
         self.index_word = index_word
-        # self.kd = KDTree(self.embeddings, leaf_size=40)
+        self.kd = KDTree(self.embeddings, leaf_size=40)
         print('Embedding shape = %s' % str(self.embeddings.shape))
         print('Model init with %d words, embbing_size=%d, in %.3lfm' %
               (self.words, self.size, (time.time() - t0) / 60))

@@ -12,9 +12,9 @@ _ = torch.empty(size=[0], device=device)
 
 # Hyper-parameters
 embed_size = 400
-hidden_size = 1200
-num_layers = 3
-num_epochs = 30
+hidden_size = 1050
+num_layers = 4
+num_epochs = 15
 batch_size = 20
 dropout = 0.5
 seq_length = 35
@@ -28,8 +28,8 @@ torch.cuda.manual_seed(seed)
 
 corpus = Corpus()
 ids = corpus.get_data('./data/language_model/ptb.train.txt', batch_size)
-eval_data = corpus.get_data('./data/language_model/ptb.valid.txt', batch_size)
-test_data = corpus.get_data('./data/language_model/ptb.test.txt', batch_size)
+eval_data = corpus.get_data('./data/language_model/ptb.valid.txt', 10)
+test_data = corpus.get_data('./data/language_model/ptb.test.txt', 1)
 vocab_size = len(corpus.dictionary)
 num_batches = ids.size(1) // seq_length
 model_path = './model/emb%d_hid%d_seq%d_bat%d_layers%d_lr%.3lf.pt' % (embed_size, hidden_size, seq_length, batch_size, num_layers,learning_rate)
@@ -44,6 +44,12 @@ class RNNLM(nn.Module):
         self.lstm = nn.LSTM(embed_size, hidden_size,
                             num_layers, batch_first=True, dropout=dropout)
         self.linear = nn.Linear(hidden_size, vocab_size)
+
+        initrange = 0.1
+        self.embed.weight.data.uniform_(-initrange, initrange)
+        self.linear.bias.data.fill_(0)
+        self.linear.weight.data.uniform_(-initrange, initrange)
+
 
     def forward(self, x, h):
         # Embed word ids to vectors
@@ -75,7 +81,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 global_step = 0
 
 
-def evaluate(model, data):
+def evaluate(model, data, batch_size):
     model.eval()
     total_loss = 0
     ntokens = len(corpus.dictionary)
@@ -140,9 +146,10 @@ for epoch in range(num_epochs):
             for tag, value in info.items():
                 logger.scalar_summary(tag, value, global_step)
 
-    eval_loss = evaluate(model, eval_data)
+    eval_loss = evaluate(model, eval_data, 10)
     if not best_val_loss or eval_loss < best_val_loss:
         print('>>> Save model, %.3lf -> %.3lf' %
               ((best_val_loss if best_val_loss else 0.0), eval_loss))
         best_val_loss = eval_loss
         model.save(model_path)
+evaluate(RNNLM.load(model_path), test_data, 1)

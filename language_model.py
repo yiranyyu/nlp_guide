@@ -11,24 +11,34 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 _ = torch.empty(size=[0], device=device)
 
 # Hyper-parameters
-embed_size = 1200
+embed_size = 400
 hidden_size = 1200
-num_layers = 2
+num_layers = 3
 num_epochs = 30
 batch_size = 20
-seq_length = 30
+dropout = 0.5
+seq_length = 35
 learning_rate = 0.004
+seed = 141
+
+# Set the random seed manually for reproducibility.
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
 
 corpus = Corpus()
-ids = corpus.get_data('./data/language model/ptb.train.txt', batch_size)
-eval_data = corpus.get_data('./data/language model/ptb.valid.txt', batch_size)
+ids = corpus.get_data('./data/language_model/ptb.train.txt', batch_size)
+eval_data = corpus.get_data('./data/language_model/ptb.valid.txt', batch_size)
+test_data = corpus.get_data('./data/language_model/ptb.test.txt', batch_size)
 vocab_size = len(corpus.dictionary)
 num_batches = ids.size(1) // seq_length
+model_path = './model/emb%d_hid%d_seq%d_bat%d_layers%d_lr%.3lf.pt' % (embed_size, hidden_size, seq_length, batch_size, num_layers,learning_rate)
 
 
 class RNNLM(nn.Module):
     def __init__(self, vocab_size, embed_size, hidden_size, num_layers, dropout=0.5):
         super(RNNLM, self).__init__()
+        print('Init model with emb=%d hid=%d layers=%d drop=%.3lf' % (embed_size, hidden_size, num_layers, dropout))
         self.drop = nn.Dropout(dropout)
         self.embed = nn.Embedding(vocab_size, embed_size)
         self.lstm = nn.LSTM(embed_size, hidden_size,
@@ -59,9 +69,10 @@ class RNNLM(nn.Module):
         return torch.load(path)
 
 
-model = RNNLM(vocab_size, embed_size, hidden_size, num_layers).to(device)
+model = RNNLM(vocab_size, embed_size, hidden_size, num_layers, dropout).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+global_step = 0
 
 
 def evaluate(model, data):
@@ -81,12 +92,14 @@ def evaluate(model, data):
     avg_loss = total_loss / (data.size(1) - 1)
     print('Evaluate Loss: {:.4f}, Perplexity: {:5.2f}'.format(
         avg_loss, np.exp(avg_loss)))
+    info = {'eval_ppl': np.exp(avg_loss)}
+    for tag, value in info.items():
+        logger.scalar_summary(tag, value, global_step)
     return avg_loss
 
 
 def detach(states):
     return [state.detach() for state in states]
-
 
 logger = Logger('./log')
 best_val_loss = None
@@ -97,7 +110,7 @@ for epoch in range(num_epochs):
     states = (torch.zeros(num_layers, batch_size, hidden_size).to(device),
               torch.zeros(num_layers, batch_size, hidden_size).to(device))
 
-    total_loss = 0
+    step = 0
     t0 = time.time()
     for i in range(0, ids.size(1) - seq_length, seq_length):
         # Get mini-batch inputs and targets
@@ -115,7 +128,9 @@ for epoch in range(num_epochs):
         clip_grad_norm_(model.parameters(), 0.5)
         optimizer.step()
 
-        step = (i+1) // seq_length
+        new_step = (i + 1) // seq_length
+        global_step += new_step - step
+        step = new_step
         if step and step % 100 == 0:
             print('Epoch [{}/{}], Step[{}/{}], Loss: {:.4f}, Perplexity: {:5.2f}, {:.3f}ms/batch'
                   .format(epoch+1, num_epochs, step, num_batches, loss.item(), np.exp(loss.item()), ((time.time() - t0) * 10)))
@@ -123,11 +138,11 @@ for epoch in range(num_epochs):
 
             info = {'ppl': np.exp(loss.item())}
             for tag, value in info.items():
-                logger.scalar_summary(tag, value, step+1)
+                logger.scalar_summary(tag, value, global_step)
 
     eval_loss = evaluate(model, eval_data)
     if not best_val_loss or eval_loss < best_val_loss:
         print('>>> Save model, %.3lf -> %.3lf' %
               ((best_val_loss if best_val_loss else 0.0), eval_loss))
         best_val_loss = eval_loss
-        model.save('./model/best_language_model.pt')
+        model.save(model_path)

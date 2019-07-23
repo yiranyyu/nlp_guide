@@ -22,10 +22,6 @@ flags.DEFINE_string("data_path", None,
                     "Where the training/test data is stored.")
 flags.DEFINE_string("save_path", None,
                     "Model output directory.")
-flags.DEFINE_string("rnn_mode", None,
-                    "The low level implementation of lstm cell: one of CUDNN, "
-                    "BASIC, and BLOCK, representing cudnn_lstm, basic_lstm, "
-                    "and lstm_block_cell classes.")
 
 # get configuration
 FLAGS = flags.FLAGS
@@ -259,10 +255,10 @@ class SmallConfig(object):
     num_steps = 20
     hidden_size = 200
 
-    # max_epoch = 4
-    # max_max_epoch = 13
-    max_epoch = 1
-    max_max_epoch = 2
+    # nth_epoch_to_dacay_lr = 4
+    # epoch = 13
+    nth_epoch_to_dacay_lr = 1
+    epoch = 2
 
     keep_prob = 1.0
     lr_decay = 0.5
@@ -279,8 +275,8 @@ class TestConfig(object):
     num_layers = 1
     num_steps = 2
     hidden_size = 2
-    max_epoch = 1
-    max_max_epoch = 1
+    nth_epoch_to_dacay_lr = 1
+    epoch = 1
     keep_prob = 1.0
     lr_decay = 0.5
     batch_size = 20
@@ -393,9 +389,8 @@ def main(_):
         sv = tf.train.Supervisor(logdir=FLAGS.save_path)
         config_proto = tf.ConfigProto(allow_soft_placement=soft_placement)
         with sv.managed_session(config=config_proto) as session:
-            for i in range(config.max_max_epoch):
-                lr_decay = config.lr_decay ** max(i +
-                                                  1 - config.max_epoch, 0.0)
+            for i in range(config.epoch):
+                lr_decay = config.lr_decay ** max(i + 1 - config.nth_epoch_to_dacay_lr, 0)
                 m.assign_lr(session, config.learning_rate * lr_decay)
 
                 print("Epoch: %d Learning rate: %.3f" %

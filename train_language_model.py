@@ -6,7 +6,7 @@ import util
 from language_model import LSTMModel
 
 
-def run_epoch(session, model, eval_op=None, verbose=False):
+def run_epoch(session, model, operation=None, verbose=False):
     start_time = time.time()
     total_cost = 0.0
     iters = 0
@@ -16,8 +16,8 @@ def run_epoch(session, model, eval_op=None, verbose=False):
         "cost": model.cost,
         "final_state": model.final_state,
     }
-    if eval_op is not None:
-        fetches["eval_op"] = eval_op
+    if operation is not None:
+        fetches["eval_op"] = operation
 
     for step in range(model.input.epoch_size):
         feed_dict = {}
@@ -41,12 +41,9 @@ def run_epoch(session, model, eval_op=None, verbose=False):
     return np.exp(total_cost / iters)
 
 
-# program entry
-def main(args):
+def init_models(args, config):
     train_data, valid_data, test_data, _ = reader.ptb_raw_data(args.data_path)
-    config = util.Config(args)
     eval_config = util.Config(args, eval=True)
-
     with tf.Graph().as_default():
         initializer = tf.random_uniform_initializer(-config.init_scale,
                                                     config.init_scale)
@@ -57,14 +54,12 @@ def main(args):
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
                 train_model = LSTMModel(is_training=True, config=config,
                                         input_data=train_input)
-
         with tf.name_scope("Valid"):
             valid_input = reader.Dataset(
                 config=config, data=valid_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
                 valid_model = LSTMModel(is_training=False,
                                         config=config, input_data=valid_input)
-
         with tf.name_scope("Test"):
             test_input = reader.Dataset(
                 config=eval_config, data=test_data)
@@ -80,7 +75,15 @@ def main(args):
         for name, model in models.items():
             model.export_ops(name)
         metagraph = tf.train.export_meta_graph()
+        return metagraph, models
 
+
+def main(args, verbose=False):
+    config = util.Config(args)
+    metagraph, models = init_models(args, config)
+    train_model, valid_model, test_model = models['Train'], models['Valid'], models['Test']
+
+    # reload graph after export
     with tf.Graph().as_default():
         tf.train.import_meta_graph(metagraph)
         for model in models.values():
@@ -94,15 +97,14 @@ def main(args):
 
                 print("Epoch: %d Learning rate: %.3f" %
                       (i + 1, session.run(train_model.lr)))
-                train_perplexity = run_epoch(session, train_model, eval_op=train_model.train_op,
-                                             verbose=True)
+                train_perplexity = run_epoch(session, train_model, operation=train_model.train_op,
+                                             verbose=verbose)
                 print("Epoch: %d Train Perplexity: %.3f" %
                       (i + 1, train_perplexity))
                 valid_perplexity = run_epoch(session, valid_model)
                 print("Epoch: %d Valid Perplexity: %.3f" %
                       (i + 1, valid_perplexity))
 
-            print('Tesing')
             test_perplexity = run_epoch(session, test_model)
             print("Test Perplexity: %.3f" % test_perplexity)
 
@@ -113,6 +115,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    # start with main function call
-    args = util.get_args()
-    main(args)
+    main(util.get_args(), verbose=False)

@@ -1,16 +1,20 @@
 import time
-
 import numpy as np
 import tensorflow as tf
-
 import reader
 import util
-
 from tensorflow.python.client import device_lib
 
-flags = tf.flags
+tf.compat.v1.enable_eager_execution()
+print("Eager mode: %s" % tf.executing_eagerly())
 logging = tf.logging
 
+# Get command line arguments
+flags = tf.flags
+
+# first argument is the dest variable
+# second argument is default value
+# third argument is description
 flags.DEFINE_string(
     "model", "small",
     "A type of model. Possible options are: small, medium, large.")
@@ -18,16 +22,12 @@ flags.DEFINE_string("data_path", None,
                     "Where the training/test data is stored.")
 flags.DEFINE_string("save_path", None,
                     "Model output directory.")
-flags.DEFINE_bool("use_fp16", False,
-                  "Train using 16-bit floats instead of 32bit floats")
-flags.DEFINE_integer("num_gpus", 1,
-                     "If larger than 1, Grappler AutoParallel optimizer "
-                     "will create multiple training replicas with each GPU "
-                     "running one replica.")
 flags.DEFINE_string("rnn_mode", None,
                     "The low level implementation of lstm cell: one of CUDNN, "
                     "BASIC, and BLOCK, representing cudnn_lstm, basic_lstm, "
                     "and lstm_block_cell classes.")
+
+# get configuration
 FLAGS = flags.FLAGS
 BASIC = "basic"
 CUDNN = "cudnn"
@@ -35,23 +35,19 @@ BLOCK = "block"
 
 
 def data_type():
-    return tf.float16 if FLAGS.use_fp16 else tf.float32
+    return tf.float32
 
 
 class PTBInput(object):
-    """The input data."""
-
-    def __init__(self, config, data, name=None):
+    def __init__(self, config, data):
         self.batch_size = batch_size = config.batch_size
         self.num_steps = num_steps = config.num_steps
         self.epoch_size = ((len(data) // batch_size) - 1) // num_steps
         self.input_data, self.targets = reader.ptb_producer(
-            data, batch_size, num_steps, name=name)
+            data, batch_size, num_steps)
 
 
 class PTBModel(object):
-    """The PTB model."""
-
     def __init__(self, is_training, config, input_):
         self._is_training = is_training
         self._input = input_
@@ -110,10 +106,7 @@ class PTBModel(object):
         self._lr_update = tf.assign(self._lr, self._new_lr)
 
     def _build_rnn_graph(self, inputs, config, is_training):
-        if config.rnn_mode == CUDNN:
-            return self._build_rnn_graph_cudnn(inputs, config, is_training)
-        else:
-            return self._build_rnn_graph_lstm(inputs, config, is_training)
+        return self._build_rnn_graph_lstm(inputs, config, is_training)
 
     def _build_rnn_graph_cudnn(self, inputs, config, is_training):
         """Build the inference graph using CUDNN cell."""
@@ -139,23 +132,18 @@ class PTBModel(object):
         outputs = tf.reshape(outputs, [-1, config.hidden_size])
         return outputs, (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
 
-    def _get_lstm_cell(self, config, is_training):
-        if config.rnn_mode == BASIC:
-            return tf.contrib.rnn.BasicLSTMCell(
-                config.hidden_size, forget_bias=0.0, state_is_tuple=True,
-                reuse=not is_training)
-        if config.rnn_mode == BLOCK:
-            return tf.contrib.rnn.LSTMBlockCell(
-                config.hidden_size, forget_bias=0.0)
-        raise ValueError("rnn_mode %s not supported" % config.rnn_mode)
+    def _get_lstm_cell(self, config):
+        return tf.contrib.rnn.LSTMBlockCell(
+            config.hidden_size, forget_bias=0.0)
 
     def _build_rnn_graph_lstm(self, inputs, config, is_training):
         """Build the inference graph using canonical LSTM cells."""
+
         # Slightly better results can be obtained with forget gate biases
         # initialized to 1 but the hyperparameters of the model would need to be
         # different than reported in the paper.
         def make_cell():
-            cell = self._get_lstm_cell(config, is_training)
+            cell = self._get_lstm_cell(config)
             if is_training and config.keep_prob < 1:
                 cell = tf.contrib.rnn.DropoutWrapper(
                     cell, output_keep_prob=config.keep_prob)
@@ -223,7 +211,7 @@ class PTBModel(object):
                     tf.GraphKeys.SAVEABLE_OBJECTS, params_saveable)
         self._cost = tf.get_collection_ref(
             util.with_prefix(self._name, "cost"))[0]
-        num_replicas = FLAGS.num_gpus if self._name == "Train" else 1
+        num_replicas = 1
         self._initial_state = util.import_state_tuples(
             self._initial_state, self._initial_state_name, num_replicas)
         self._final_state = util.import_state_tuples(
@@ -270,8 +258,12 @@ class SmallConfig(object):
     num_layers = 2
     num_steps = 20
     hidden_size = 200
-    max_epoch = 4
-    max_max_epoch = 13
+
+    # max_epoch = 4
+    # max_max_epoch = 13
+    max_epoch = 1
+    max_max_epoch = 2
+
     keep_prob = 1.0
     lr_decay = 0.5
     batch_size = 20
@@ -326,7 +318,7 @@ def run_epoch(session, model, eval_op=None, verbose=False):
         if verbose and step % (model.input.epoch_size // 10) == 10:
             print("%.3f perplexity: %.3f speed: %.0f wps" %
                   (step * 1.0 / model.input.epoch_size, np.exp(costs / iters),
-                   iters * model.input.batch_size * max(1, FLAGS.num_gpus) /
+                   iters * model.input.batch_size * 1 /
                    (time.time() - start_time)))
 
     return np.exp(costs / iters)
@@ -341,24 +333,16 @@ def get_config():
         config = TestConfig()
     else:
         raise ValueError("Invalid model: %s", FLAGS.model)
-    if FLAGS.rnn_mode:
-        config.rnn_mode = FLAGS.rnn_mode
-    if FLAGS.num_gpus != 1 or tf.__version__ < "1.3.0":
-        config.rnn_mode = BASIC
     return config
 
 
+# program entry
 def main(_):
     if not FLAGS.data_path:
         raise ValueError("Must set --data_path to PTB data directory")
     gpus = [
         x.name for x in device_lib.list_local_devices() if x.device_type == "GPU"
     ]
-    if FLAGS.num_gpus > len(gpus):
-        raise ValueError(
-            "Your machine has only %d gpus "
-            "which is less than the requested --num_gpus=%d."
-            % (len(gpus), FLAGS.num_gpus))
 
     raw_data = reader.ptb_raw_data(FLAGS.data_path)
     train_data, valid_data, test_data, _ = raw_data
@@ -374,7 +358,7 @@ def main(_):
 
         with tf.name_scope("Train"):
             train_input = PTBInput(
-                config=config, data=train_data, name="TrainInput")
+                config=config, data=train_data)
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
                 m = PTBModel(is_training=True, config=config,
                              input_=train_input)
@@ -383,7 +367,7 @@ def main(_):
 
         with tf.name_scope("Valid"):
             valid_input = PTBInput(
-                config=config, data=valid_data, name="ValidInput")
+                config=config, data=valid_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
                 mvalid = PTBModel(is_training=False,
                                   config=config, input_=valid_input)
@@ -391,7 +375,7 @@ def main(_):
 
         with tf.name_scope("Test"):
             test_input = PTBInput(
-                config=eval_config, data=test_data, name="TestInput")
+                config=eval_config, data=test_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
                 mtest = PTBModel(is_training=False, config=eval_config,
                                  input_=test_input)
@@ -400,13 +384,7 @@ def main(_):
         for name, model in models.items():
             model.export_ops(name)
         metagraph = tf.train.export_meta_graph()
-        if tf.__version__ < "1.1.0" and FLAGS.num_gpus > 1:
-            raise ValueError("num_gpus > 1 is not supported for TensorFlow versions "
-                             "below 1.1.0")
         soft_placement = False
-        if FLAGS.num_gpus > 1:
-            soft_placement = True
-            util.auto_parallel(metagraph, m)
 
     with tf.Graph().as_default():
         tf.train.import_meta_graph(metagraph)
@@ -430,6 +408,7 @@ def main(_):
                 print("Epoch: %d Valid Perplexity: %.3f" %
                       (i + 1, valid_perplexity))
 
+            print('Start testing')
             test_perplexity = run_epoch(session, mtest)
             print("Test Perplexity: %.3f" % test_perplexity)
 
@@ -440,4 +419,5 @@ def main(_):
 
 
 if __name__ == "__main__":
+    # start with main function call
     tf.app.run()

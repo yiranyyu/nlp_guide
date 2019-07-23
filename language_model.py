@@ -44,20 +44,19 @@ class PTBInput(object):
 
 
 class PTBModel(object):
-    def __init__(self, is_training, config, input_):
+    def __init__(self, is_training, config, input_data):
         self._is_training = is_training
-        self.input = input_
-        self._rnn_params = None
+        self.input = input_data
         self._cell = None
-        self.batch_size = input_.batch_size
-        self.num_steps = input_.num_steps
+        self.batch_size = input_data.batch_size
+        self.num_steps = input_data.num_steps
         size = config.hidden_size
         vocab_size = config.vocab_size
 
         with tf.device("/cpu:0"):
             embedding = tf.get_variable(
                 "embedding", [vocab_size, size], dtype=data_type())
-            inputs = tf.nn.embedding_lookup(embedding, input_.input_data)
+            inputs = tf.nn.embedding_lookup(embedding, input_data.input_data)
 
         if is_training and config.keep_prob < 1:
             inputs = tf.nn.dropout(inputs, config.keep_prob)
@@ -76,7 +75,7 @@ class PTBModel(object):
         # Use the contrib sequence loss and average over the batches
         loss = tf.contrib.seq2seq.sequence_loss(
             logits,
-            input_.targets,
+            input_data.targets,
             tf.ones([self.batch_size, self.num_steps], dtype=data_type()),
             average_across_timesteps=False,
             average_across_batch=True)
@@ -102,70 +101,23 @@ class PTBModel(object):
         self._lr_update = tf.assign(self.lr, self._new_lr)
 
     def _build_rnn_graph(self, inputs, config, is_training):
-        return self._build_rnn_graph_lstm(inputs, config, is_training)
-
-    def _build_rnn_graph_cudnn(self, inputs, config, is_training):
-        """Build the inference graph using CUDNN cell."""
-        inputs = tf.transpose(inputs, [1, 0, 2])
-        self._cell = tf.contrib.cudnn_rnn.CudnnLSTM(
-            num_layers=config.num_layers,
-            num_units=config.hidden_size,
-            input_size=config.hidden_size,
-            dropout=1 - config.keep_prob if is_training else 0)
-        params_size_t = self._cell.params_size()
-        self._rnn_params = tf.get_variable(
-            "lstm_params",
-            initializer=tf.random_uniform(
-                [params_size_t], -config.init_scale, config.init_scale),
-            validate_shape=False)
-        c = tf.zeros([config.num_layers, self.batch_size, config.hidden_size],
-                     tf.float32)
-        h = tf.zeros([config.num_layers, self.batch_size, config.hidden_size],
-                     tf.float32)
-        self.initial_state = (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
-        outputs, h, c = self._cell(inputs, h, c, self._rnn_params, is_training)
-        outputs = tf.transpose(outputs, [1, 0, 2])
-        outputs = tf.reshape(outputs, [-1, config.hidden_size])
-        return outputs, (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
-
-    def _get_lstm_cell(self, config):
-        return tf.contrib.rnn.LSTMBlockCell(
-            config.hidden_size, forget_bias=0.0)
-
-    def _build_rnn_graph_lstm(self, inputs, config, is_training):
-        """Build the inference graph using canonical LSTM cells."""
-
-        # Slightly better results can be obtained with forget gate biases
-        # initialized to 1 but the hyperparameters of the model would need to be
-        # different than reported in the paper.
         def make_cell():
-            cell = self._get_lstm_cell(config)
+            rtn = tf.contrib.rnn.LSTMBlockCell(
+                config.hidden_size, forget_bias=0.0)
             if is_training and config.keep_prob < 1:
-                cell = tf.contrib.rnn.DropoutWrapper(
-                    cell, output_keep_prob=config.keep_prob)
-            return cell
+                rtn = tf.contrib.rnn.DropoutWrapper(
+                    rtn, output_keep_prob=config.keep_prob)
+            return rtn
 
         cell = tf.contrib.rnn.MultiRNNCell(
             [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
         self.initial_state = cell.zero_state(config.batch_size, data_type())
         state = self.initial_state
-        # Simplified version of tf.nn.static_rnn().
-        # This builds an unrolled LSTM for tutorial purposes only.
-        # In general, use tf.nn.static_rnn() or tf.nn.static_state_saving_rnn().
-        #
-        # The alternative version of the code below is:
-        #
-        # inputs = tf.unstack(inputs, num=self.num_steps, axis=1)
-        # outputs, state = tf.nn.static_rnn(cell, inputs,
-        #                                   initial_state=self._initial_state)
-        outputs = []
-        with tf.variable_scope("RNN"):
-            for time_step in range(self.num_steps):
-                if time_step > 0:
-                    tf.get_variable_scope().reuse_variables()
-                (cell_output, state) = cell(inputs[:, time_step, :], state)
-                outputs.append(cell_output)
+
+        inputs = tf.unstack(inputs, num=self.num_steps, axis=1)
+        outputs, state = tf.nn.static_rnn(cell, inputs,
+                                          initial_state=self.initial_state)
         output = tf.reshape(tf.concat(outputs, 1), [-1, config.hidden_size])
         return output, state
 
@@ -179,8 +131,6 @@ class PTBModel(object):
         if self._is_training:
             ops.update(lr=self.lr, new_lr=self._new_lr,
                        lr_update=self._lr_update)
-            if self._rnn_params:
-                ops.update(rnn_params=self._rnn_params)
         for name, op in ops.items():
             tf.add_to_collection(name, op)
         self.initial_state_name = util.with_prefix(self._name, "initial")
@@ -320,7 +270,7 @@ def main(_):
                 config=config, data=train_data)
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
                 train_model = PTBModel(is_training=True, config=config,
-                                       input_=train_input)
+                                       input_data=train_input)
             tf.summary.scalar("Training Loss", train_model.cost)
             tf.summary.scalar("Learning Rate", train_model.lr)
 
@@ -329,7 +279,7 @@ def main(_):
                 config=config, data=valid_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
                 valid_model = PTBModel(is_training=False,
-                                       config=config, input_=valid_input)
+                                       config=config, input_data=valid_input)
             tf.summary.scalar("Validation Loss", valid_model.cost)
 
         with tf.name_scope("Test"):
@@ -337,7 +287,7 @@ def main(_):
                 config=eval_config, data=test_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
                 test_model = PTBModel(is_training=False, config=eval_config,
-                                      input_=test_input)
+                                      input_data=test_input)
 
         models = {"Train": train_model,
                   "Valid": valid_model, "Test": test_model}

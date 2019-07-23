@@ -18,18 +18,15 @@ class LSTMModel(object):
         if is_training and config.keep_prob < 1:
             inputs = tf.nn.dropout(inputs, config.keep_prob)
 
-        output, state = self._build_rnn_graph(inputs, config, is_training)
+        output, state = self.rnn_graph(inputs, config, is_training)
 
         softmax_w = tf.get_variable(
             "softmax_w", [hidden_size, vocab_size], dtype=config.float)
         softmax_b = tf.get_variable(
             "softmax_b", [vocab_size], dtype=config.float)
         logits = tf.nn.xw_plus_b(output, softmax_w, softmax_b)
-        # Reshape logits to be a 3-D tensor for sequence loss
         logits = tf.reshape(
             logits, [self.batch_size, self.num_steps, vocab_size])
-
-        # Use the contrib sequence loss and average over the batches
         loss = tf.contrib.seq2seq.sequence_loss(
             logits,
             input_data.targets,
@@ -54,7 +51,7 @@ class LSTMModel(object):
                 tf.float32, shape=[], name="new_learning_rate")
             self._lr_update = tf.assign(self.lr, self._new_lr)
 
-    def _build_rnn_graph(self, inputs, config, is_training):
+    def rnn_graph(self, inputs, config, is_training):
         def make_cell():
             rtn = tf.contrib.rnn.LSTMBlockCell(
                 config.hidden_size, forget_bias=0.0)
@@ -66,9 +63,7 @@ class LSTMModel(object):
         cell = tf.contrib.rnn.MultiRNNCell(
             [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
-        self.initial_state = cell.zero_state(
-            config.batch_size, config.float)
-        state = self.initial_state
+        state = self.initial_state = cell.zero_state(config.batch_size, config.float)
 
         inputs = tf.unstack(inputs, num=self.num_steps, axis=1)
         outputs, state = tf.nn.static_rnn(cell, inputs,
@@ -81,14 +76,14 @@ class LSTMModel(object):
 
     def export_ops(self, name):
         self._name = name
-        ops = {util.with_prefix(self._name, "cost"): self.cost}
+        ops = {util.join(self._name, "cost"): self.cost}
         if self.is_training:
             ops.update(lr=self.lr, new_lr=self._new_lr,
                        lr_update=self._lr_update)
         for name, op in ops.items():
             tf.add_to_collection(name, op)
-        self.initial_state_name = util.with_prefix(self._name, "initial")
-        self.final_state_name = util.with_prefix(self._name, "final")
+        self.initial_state_name = util.join(self._name, "initial")
+        self.final_state_name = util.join(self._name, "final")
         util.export_state_tuples(self.initial_state, self.initial_state_name)
         util.export_state_tuples(self.final_state, self.final_state_name)
 
@@ -99,7 +94,7 @@ class LSTMModel(object):
             self._new_lr = tf.get_collection_ref("new_lr")[0]
             self._lr_update = tf.get_collection_ref("lr_update")[0]
         self.cost = tf.get_collection_ref(
-            util.with_prefix(self._name, "cost"))[0]
+            util.join(self._name, "cost"))[0]
         num_replicas = 1
         self.initial_state = util.import_state_tuples(
             self.initial_state, self.initial_state_name, num_replicas)

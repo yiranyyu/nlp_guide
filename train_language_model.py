@@ -35,7 +35,8 @@ def run_epoch(session, model, operation=None, verbose=False):
         if verbose and step % (model.input.epoch_size // 10) == 10:
             print("%.3f ppl: %.3f" %
                   (step * 1.0 / model.input.epoch_size, np.exp(total_cost / iters)))
-
+    if verbose:
+        print('Epoch finished in %.3lfm' % ((time.time() - start_time) / 60))
     return np.exp(total_cost / iters)
 
 
@@ -97,10 +98,10 @@ def main(args, verbose=False):
                       (i + 1, session.run(train_model.lr)))
                 train_perplexity = run_epoch(session, train_model, operation=train_model.train_op,
                                              verbose=verbose)
-                print("[Epoch %d] Train ppl: %.3f" %
+                print("[Epoch %d Train] ppl: %.3f" %
                       (i + 1, train_perplexity))
                 valid_perplexity = run_epoch(session, valid_model)
-                print("[Epoch %d] Valid ppl: %.3f" %
+                print("[Epoch %d Valid] ppl: %.3f" %
                       (i + 1, valid_perplexity))
 
             test_perplexity = run_epoch(session, test_model)
@@ -113,4 +114,4 @@ def main(args, verbose=False):
 
 
 if __name__ == "__main__":
-    main(util.get_args(), verbose=True)
+    main(util.get_args(), verbose=False)

@@ -17,8 +17,7 @@ def import_state_tuples(state_tuples, name, num_replicas):
     return tuple(restored)
 
 
-def with_prefix(prefix, name):
-    """Adds prefix to name."""
+def join(prefix, name):
     return "/".join((prefix, name))
 
 

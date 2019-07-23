@@ -1,10 +1,6 @@
 import collections
 import os
-import sys
-
 import tensorflow as tf
-
-Py3 = sys.version_info[0] == 3
 
 
 def read_words(filename):
@@ -47,13 +43,7 @@ def ptb_raw_data(data_path=None):
     return train_data, valid_data, test_data, vocab_size
 
 
-def ptb_producer(raw_data: list, batch_size: int, step_size: int):
-    """
-    :param raw_data: list of indices of tokens
-    :param batch_size: size of batch
-    :param step_size: number of batches in a step
-    :return:
-    """
+def make_batch(raw_data: list, batch_size: int, seq_len: int):
     raw_data = tf.convert_to_tensor(raw_data, name="raw_data", dtype=tf.int32)
 
     data_len = tf.size(raw_data)
@@ -62,7 +52,7 @@ def ptb_producer(raw_data: list, batch_size: int, step_size: int):
                       [batch_size, n_batches])
 
     # number of steps in one epoch
-    epoch_size = (n_batches - 1) // step_size
+    epoch_size = (n_batches - 1) // seq_len
 
     # create queue like [0, 1, ...., epoch_size - 1,
     #                    0, 1, ...., epoch_size - 1,
@@ -71,10 +61,19 @@ def ptb_producer(raw_data: list, batch_size: int, step_size: int):
 
     # using element in x to predict element in y
     # i.e. using the current word (index) to predict the next word (index)
-    x = tf.strided_slice(data, [0, i * step_size],
-                         [batch_size, (i + 1) * step_size])
-    x.set_shape([batch_size, step_size])
-    y = tf.strided_slice(data, [0, i * step_size + 1],
-                         [batch_size, (i + 1) * step_size + 1])
-    y.set_shape([batch_size, step_size])
+    x = tf.strided_slice(data, [0, i * seq_len],
+                         [batch_size, (i + 1) * seq_len])
+    x.set_shape([batch_size, seq_len])
+    y = tf.strided_slice(data, [0, i * seq_len + 1],
+                         [batch_size, (i + 1) * seq_len + 1])
+    y.set_shape([batch_size, seq_len])
     return x, y
+
+
+class Dataset(object):
+    def __init__(self, config, data):
+        self.batch_size = batch_size = config.batch_size
+        self.num_steps = num_steps = config.num_steps
+        self.epoch_size = ((len(data) // batch_size) - 1) // num_steps
+        self.data, self.targets = make_batch(
+            data, batch_size, num_steps)

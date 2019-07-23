@@ -3,48 +3,15 @@ import numpy as np
 import tensorflow as tf
 import reader
 import util
-from tensorflow.python.client import device_lib
 
+args = util.get_args()
 tf.compat.v1.enable_eager_execution()
 print("Eager mode: %s" % tf.executing_eagerly())
 
-# Get command line arguments
-flags = tf.flags
 
-# first argument is the dest variable
-# second argument is default value
-# third argument is description
-flags.DEFINE_string(
-    "model", "small",
-    "A type of model. Possible options are: small, medium, large.")
-flags.DEFINE_string("data_path", None,
-                    "Where the training/test data is stored.")
-flags.DEFINE_string("save_path", None,
-                    "Model output directory.")
-
-# get configuration
-FLAGS = flags.FLAGS
-BASIC = "basic"
-CUDNN = "cudnn"
-BLOCK = "block"
-
-
-def data_type():
-    return tf.float32
-
-
-class PTBInput(object):
-    def __init__(self, config, data):
-        self.batch_size = batch_size = config.batch_size
-        self.num_steps = num_steps = config.num_steps
-        self.epoch_size = ((len(data) // batch_size) - 1) // num_steps
-        self.data, self.targets = reader.ptb_producer(
-            data, batch_size, num_steps)
-
-
-class PTBModel(object):
+class LSTMModel(object):
     def __init__(self, is_training, config, input_data):
-        self._is_training = is_training
+        self.is_training = is_training
         self.input = input_data
         self.batch_size = input_data.batch_size
         self.num_steps = input_data.num_steps
@@ -52,7 +19,7 @@ class PTBModel(object):
         vocab_size = config.vocab_size
 
         embedding = tf.get_variable(
-            "embedding", [vocab_size, hidden_size], dtype=data_type())
+            "embedding", [vocab_size, hidden_size], dtype=config.float)
         inputs = tf.nn.embedding_lookup(embedding, input_data.data)
 
         if is_training and config.keep_prob < 1:
@@ -61,9 +28,9 @@ class PTBModel(object):
         output, state = self._build_rnn_graph(inputs, config, is_training)
 
         softmax_w = tf.get_variable(
-            "softmax_w", [hidden_size, vocab_size], dtype=data_type())
+            "softmax_w", [hidden_size, vocab_size], dtype=config.float)
         softmax_b = tf.get_variable(
-            "softmax_b", [vocab_size], dtype=data_type())
+            "softmax_b", [vocab_size], dtype=config.float)
         logits = tf.nn.xw_plus_b(output, softmax_w, softmax_b)
         # Reshape logits to be a 3-D tensor for sequence loss
         logits = tf.reshape(
@@ -73,7 +40,7 @@ class PTBModel(object):
         loss = tf.contrib.seq2seq.sequence_loss(
             logits,
             input_data.targets,
-            tf.ones([self.batch_size, self.num_steps], dtype=data_type()),
+            tf.ones([self.batch_size, self.num_steps], dtype=config.float),
             average_across_timesteps=False,
             average_across_batch=True)
 
@@ -106,7 +73,8 @@ class PTBModel(object):
         cell = tf.contrib.rnn.MultiRNNCell(
             [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
-        self.initial_state = cell.zero_state(config.batch_size, data_type())
+        self.initial_state = cell.zero_state(
+            config.batch_size, config.float)
         state = self.initial_state
 
         inputs = tf.unstack(inputs, num=self.num_steps, axis=1)
@@ -121,7 +89,7 @@ class PTBModel(object):
     def export_ops(self, name):
         self._name = name
         ops = {util.with_prefix(self._name, "cost"): self.cost}
-        if self._is_training:
+        if self.is_training:
             ops.update(lr=self.lr, new_lr=self._new_lr,
                        lr_update=self._lr_update)
         for name, op in ops.items():
@@ -132,7 +100,7 @@ class PTBModel(object):
         util.export_state_tuples(self.final_state, self.final_state_name)
 
     def import_ops(self):
-        if self._is_training:
+        if self.is_training:
             self.train_op = tf.get_collection_ref("train_op")[0]
             self.lr = tf.get_collection_ref("lr")[0]
             self._new_lr = tf.get_collection_ref("new_lr")[0]
@@ -144,44 +112,6 @@ class PTBModel(object):
             self.initial_state, self.initial_state_name, num_replicas)
         self.final_state = util.import_state_tuples(
             self.final_state, self.final_state_name, num_replicas)
-
-
-class SmallConfig(object):
-    """Small config."""
-    init_scale = 0.1
-    learning_rate = 1.0
-    max_grad_norm = 5
-    num_layers = 2
-    num_steps = 20
-    hidden_size = 200
-
-    # nth_epoch_to_dacay_lr = 4
-    # epoch = 13
-    nth_epoch_to_dacay_lr = 1
-    epoch = 2
-
-    keep_prob = 1.0
-    lr_decay = 0.5
-    batch_size = 20
-    vocab_size = 10000
-    rnn_mode = BLOCK
-
-
-class TestConfig(object):
-    """Tiny config, for testing."""
-    init_scale = 0.1
-    learning_rate = 1.0
-    max_grad_norm = 1
-    num_layers = 1
-    num_steps = 2
-    hidden_size = 2
-    nth_epoch_to_dacay_lr = 1
-    epoch = 1
-    keep_prob = 1.0
-    lr_decay = 0.5
-    batch_size = 20
-    vocab_size = 10000
-    rnn_mode = BLOCK
 
 
 def run_epoch(session, model, eval_op=None, verbose=False):
@@ -219,27 +149,15 @@ def run_epoch(session, model, eval_op=None, verbose=False):
     return np.exp(total_cost / iters)
 
 
-def get_config():
-    """Get model config."""
-    config = None
-    if FLAGS.model == "small":
-        config = SmallConfig()
-    elif FLAGS.model == "test":
-        config = TestConfig()
-    else:
-        raise ValueError("Invalid model: %s", FLAGS.model)
-    return config
-
-
 # program entry
 def main(_):
-    if not FLAGS.data_path:
+    if not args.data_path:
         raise ValueError("Must set --data_path to PTB data directory")
-    raw_data = reader.ptb_raw_data(FLAGS.data_path)
+    raw_data = reader.ptb_raw_data(args.data_path)
     train_data, valid_data, test_data, _ = raw_data
 
-    config = get_config()
-    eval_config = get_config()
+    config = util.get_config()
+    eval_config = util.get_config()
     eval_config.batch_size = 1
     eval_config.num_steps = 1
 
@@ -248,31 +166,31 @@ def main(_):
                                                     config.init_scale)
 
         with tf.name_scope("Train"):
-            train_input = PTBInput(
+            train_input = reader.Dataset(
                 config=config, data=train_data)
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
-                train_model = PTBModel(is_training=True, config=config,
-                                       input_data=train_input)
-            tf.summary.scalar("Training Loss", train_model.cost)
-            tf.summary.scalar("Learning Rate", train_model.lr)
+                train_model = LSTMModel(is_training=True, config=config,
+                                        input_data=train_input)
 
         with tf.name_scope("Valid"):
-            valid_input = PTBInput(
+            valid_input = reader.Dataset(
                 config=config, data=valid_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-                valid_model = PTBModel(is_training=False,
-                                       config=config, input_data=valid_input)
-            tf.summary.scalar("Validation Loss", valid_model.cost)
+                valid_model = LSTMModel(is_training=False,
+                                        config=config, input_data=valid_input)
 
         with tf.name_scope("Test"):
-            test_input = PTBInput(
+            test_input = reader.Dataset(
                 config=eval_config, data=test_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-                test_model = PTBModel(is_training=False, config=eval_config,
-                                      input_data=test_input)
+                test_model = LSTMModel(is_training=False, config=eval_config,
+                                       input_data=test_input)
 
         models = {"Train": train_model,
                   "Valid": valid_model, "Test": test_model}
+
+        # Train model and Valid model and Test model share same network state
+        # but have different learning rate and other parameter states
         for name, model in models.items():
             model.export_ops(name)
         metagraph = tf.train.export_meta_graph()
@@ -281,7 +199,7 @@ def main(_):
         tf.train.import_meta_graph(metagraph)
         for model in models.values():
             model.import_ops()
-        sv = tf.train.Supervisor(logdir=FLAGS.save_path)
+        sv = tf.train.Supervisor(logdir=args.save_path)
         with sv.managed_session(config=tf.ConfigProto()) as session:
             for i in range(config.epoch):
                 lr_decay = config.lr_decay ** max(i +
@@ -302,9 +220,9 @@ def main(_):
             test_perplexity = run_epoch(session, test_model)
             print("Test Perplexity: %.3f" % test_perplexity)
 
-            if FLAGS.save_path:
-                print("Saving model to %s." % FLAGS.save_path)
-                sv.saver.save(session, FLAGS.save_path,
+            if args.save_path:
+                print("Saving model to %s." % args.save_path)
+                sv.saver.save(session, args.save_path,
                               global_step=sv.global_step)
 
 

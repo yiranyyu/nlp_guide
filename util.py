@@ -64,6 +64,7 @@ class Config(object):
     vocab_size = 10000
     float = tf.float32
 
-
-def get_config():
-    return Config()
+    def __init__(self, args, eval=False):
+        if eval:
+            self.batch_size = 1
+            self.num_steps = 1

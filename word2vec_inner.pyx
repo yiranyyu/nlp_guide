@@ -6,7 +6,7 @@ import os
 import warnings
 import struct
 from scipy.linalg.blas import saxpy
-from model import Word2vecModel
+from word2vec_model import Word2vecModel
 from libc.stdlib cimport rand, malloc, free
 from libc.math cimport sin, cos, acos, exp, sqrt, fabs, M_PI
 from multiprocessing import Pool, Value, Array

@@ -33,10 +33,8 @@ def run_epoch(session, model, operation=None, verbose=False):
         iters += model.input.num_steps
 
         if verbose and step % (model.input.epoch_size // 10) == 10:
-            print("%.3f perplexity: %.3f speed: %.0f wps" %
-                  (step * 1.0 / model.input.epoch_size, np.exp(total_cost / iters),
-                   iters * model.input.batch_size * 1 /
-                   (time.time() - start_time)))
+            print("%.3f ppl: %.3f" %
+                  (step * 1.0 / model.input.epoch_size, np.exp(total_cost / iters)))
 
     return np.exp(total_cost / iters)
 
@@ -95,18 +93,18 @@ def main(args, verbose=False):
                                                   1 - config.nth_epoch_to_dacay_lr, 0)
                 train_model.assign_lr(session, config.learning_rate * lr_decay)
 
-                print("Epoch: %d Learning rate: %.3f" %
+                print("[Epoch %d] lr: %.3f" %
                       (i + 1, session.run(train_model.lr)))
                 train_perplexity = run_epoch(session, train_model, operation=train_model.train_op,
                                              verbose=verbose)
-                print("Epoch: %d Train Perplexity: %.3f" %
+                print("[Epoch %d] Train ppl: %.3f" %
                       (i + 1, train_perplexity))
                 valid_perplexity = run_epoch(session, valid_model)
-                print("Epoch: %d Valid Perplexity: %.3f" %
+                print("[Epoch %d] Valid ppl: %.3f" %
                       (i + 1, valid_perplexity))
 
             test_perplexity = run_epoch(session, test_model)
-            print("Test Perplexity: %.3f" % test_perplexity)
+            print("Test ppl: %.3f" % test_perplexity)
 
             if args.save_path:
                 print("Saving model to %s." % args.save_path)
@@ -115,4 +113,4 @@ def main(args, verbose=False):
 
 
 if __name__ == "__main__":
-    main(util.get_args(), verbose=False)
+    main(util.get_args(), verbose=True)

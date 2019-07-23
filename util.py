@@ -1,7 +1,5 @@
 import tensorflow as tf
 
-FLAGS = tf.flags.FLAGS
-
 
 def export_state_tuples(state_tuples, name):
     for state_tuple in state_tuples:

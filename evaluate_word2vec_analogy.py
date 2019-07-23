@@ -1,6 +1,6 @@
 import argparse
 from os import path
-from model import Word2vecModel
+from word2vec_model import Word2vecModel
 from time import time
 
 if __name__ == "__main__":

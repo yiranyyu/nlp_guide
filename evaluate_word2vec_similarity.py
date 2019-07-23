@@ -1,4 +1,4 @@
-from model import Word2vecModel
+from word2vec_model import Word2vecModel
 from scipy.stats import spearmanr
 import numpy as np
 import argparse

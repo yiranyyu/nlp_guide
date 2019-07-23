@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 from multiprocessing import Pool, Value, Array
 from word2vec_inner import sigmoid, Vocab, UnigramTable, init_embedding, train_epoch
-from model import Word2vecModel
+from word2vec_model import Word2vecModel
 
 
 def train_process(pid, epoch, cbow, neg, dim, lr, win, num_processes, corpus_file, sample: float, batch_size_in_character: int):

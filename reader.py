@@ -69,6 +69,8 @@ def ptb_producer(raw_data: list, batch_size: int, step_size: int):
     #                    ..... ]
     i = tf.train.range_input_producer(epoch_size, shuffle=False).dequeue()
 
+    # using element in x to predict element in y
+    # i.e. using the current word (index) to predict the next word (index)
     x = tf.strided_slice(data, [0, i * step_size],
                          [batch_size, (i + 1) * step_size])
     x.set_shape([batch_size, step_size])

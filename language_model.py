@@ -46,7 +46,7 @@ class PTBInput(object):
 class PTBModel(object):
     def __init__(self, is_training, config, input_):
         self._is_training = is_training
-        self._input = input_
+        self.input = input_
         self._rnn_params = None
         self._cell = None
         self.batch_size = input_.batch_size
@@ -82,24 +82,24 @@ class PTBModel(object):
             average_across_batch=True)
 
         # Update the cost
-        self._cost = tf.reduce_sum(loss)
-        self._final_state = state
+        self.cost = tf.reduce_sum(loss)
+        self.final_state = state
 
         if not is_training:
             return
 
-        self._lr = tf.Variable(0.0, trainable=False)
+        self.lr = tf.Variable(0.0, trainable=False)
         tvars = tf.trainable_variables()
-        grads, _ = tf.clip_by_global_norm(tf.gradients(self._cost, tvars),
+        grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars),
                                           config.max_grad_norm)
-        optimizer = tf.train.GradientDescentOptimizer(self._lr)
-        self._train_op = optimizer.apply_gradients(
+        optimizer = tf.train.GradientDescentOptimizer(self.lr)
+        self.train_op = optimizer.apply_gradients(
             zip(grads, tvars),
             global_step=tf.train.get_or_create_global_step())
 
         self._new_lr = tf.placeholder(
             tf.float32, shape=[], name="new_learning_rate")
-        self._lr_update = tf.assign(self._lr, self._new_lr)
+        self._lr_update = tf.assign(self.lr, self._new_lr)
 
     def _build_rnn_graph(self, inputs, config, is_training):
         return self._build_rnn_graph_lstm(inputs, config, is_training)
@@ -122,7 +122,7 @@ class PTBModel(object):
                      tf.float32)
         h = tf.zeros([config.num_layers, self.batch_size, config.hidden_size],
                      tf.float32)
-        self._initial_state = (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
+        self.initial_state = (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
         outputs, h, c = self._cell(inputs, h, c, self._rnn_params, is_training)
         outputs = tf.transpose(outputs, [1, 0, 2])
         outputs = tf.reshape(outputs, [-1, config.hidden_size])
@@ -148,8 +148,8 @@ class PTBModel(object):
         cell = tf.contrib.rnn.MultiRNNCell(
             [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
-        self._initial_state = cell.zero_state(config.batch_size, data_type())
-        state = self._initial_state
+        self.initial_state = cell.zero_state(config.batch_size, data_type())
+        state = self.initial_state
         # Simplified version of tf.nn.static_rnn().
         # This builds an unrolled LSTM for tutorial purposes only.
         # In general, use tf.nn.static_rnn() or tf.nn.static_state_saving_rnn().
@@ -175,24 +175,24 @@ class PTBModel(object):
     def export_ops(self, name):
         """Exports ops to collections."""
         self._name = name
-        ops = {util.with_prefix(self._name, "cost"): self._cost}
+        ops = {util.with_prefix(self._name, "cost"): self.cost}
         if self._is_training:
-            ops.update(lr=self._lr, new_lr=self._new_lr,
+            ops.update(lr=self.lr, new_lr=self._new_lr,
                        lr_update=self._lr_update)
             if self._rnn_params:
                 ops.update(rnn_params=self._rnn_params)
         for name, op in ops.items():
             tf.add_to_collection(name, op)
-        self._initial_state_name = util.with_prefix(self._name, "initial")
-        self._final_state_name = util.with_prefix(self._name, "final")
-        util.export_state_tuples(self._initial_state, self._initial_state_name)
-        util.export_state_tuples(self._final_state, self._final_state_name)
+        self.initial_state_name = util.with_prefix(self._name, "initial")
+        self.final_state_name = util.with_prefix(self._name, "final")
+        util.export_state_tuples(self.initial_state, self.initial_state_name)
+        util.export_state_tuples(self.final_state, self.final_state_name)
 
     def import_ops(self):
         """Imports ops from collections."""
         if self._is_training:
-            self._train_op = tf.get_collection_ref("train_op")[0]
-            self._lr = tf.get_collection_ref("lr")[0]
+            self.train_op = tf.get_collection_ref("train_op")[0]
+            self.lr = tf.get_collection_ref("lr")[0]
             self._new_lr = tf.get_collection_ref("new_lr")[0]
             self._lr_update = tf.get_collection_ref("lr_update")[0]
             rnn_params = tf.get_collection_ref("rnn_params")
@@ -205,45 +205,13 @@ class PTBModel(object):
                     base_variable_scope="Model/RNN")
                 tf.add_to_collection(
                     tf.GraphKeys.SAVEABLE_OBJECTS, params_saveable)
-        self._cost = tf.get_collection_ref(
+        self.cost = tf.get_collection_ref(
             util.with_prefix(self._name, "cost"))[0]
         num_replicas = 1
-        self._initial_state = util.import_state_tuples(
-            self._initial_state, self._initial_state_name, num_replicas)
-        self._final_state = util.import_state_tuples(
-            self._final_state, self._final_state_name, num_replicas)
-
-    @property
-    def input(self):
-        return self._input
-
-    @property
-    def initial_state(self):
-        return self._initial_state
-
-    @property
-    def cost(self):
-        return self._cost
-
-    @property
-    def final_state(self):
-        return self._final_state
-
-    @property
-    def lr(self):
-        return self._lr
-
-    @property
-    def train_op(self):
-        return self._train_op
-
-    @property
-    def initial_state_name(self):
-        return self._initial_state_name
-
-    @property
-    def final_state_name(self):
-        return self._final_state_name
+        self.initial_state = util.import_state_tuples(
+            self.initial_state, self.initial_state_name, num_replicas)
+        self.final_state = util.import_state_tuples(
+            self.final_state, self.final_state_name, num_replicas)
 
 
 class SmallConfig(object):
@@ -285,9 +253,8 @@ class TestConfig(object):
 
 
 def run_epoch(session, model, eval_op=None, verbose=False):
-    """Runs the model on the given data."""
     start_time = time.time()
-    costs = 0.0
+    total_cost = 0.0
     iters = 0
     state = session.run(model.initial_state)
 
@@ -308,16 +275,16 @@ def run_epoch(session, model, eval_op=None, verbose=False):
         cost = vals["cost"]
         state = vals["final_state"]
 
-        costs += cost
+        total_cost += cost
         iters += model.input.num_steps
 
         if verbose and step % (model.input.epoch_size // 10) == 10:
             print("%.3f perplexity: %.3f speed: %.0f wps" %
-                  (step * 1.0 / model.input.epoch_size, np.exp(costs / iters),
+                  (step * 1.0 / model.input.epoch_size, np.exp(total_cost / iters),
                    iters * model.input.batch_size * 1 /
                    (time.time() - start_time)))
 
-    return np.exp(costs / iters)
+    return np.exp(total_cost / iters)
 
 
 def get_config():
@@ -336,10 +303,6 @@ def get_config():
 def main(_):
     if not FLAGS.data_path:
         raise ValueError("Must set --data_path to PTB data directory")
-    gpus = [
-        x.name for x in device_lib.list_local_devices() if x.device_type == "GPU"
-    ]
-
     raw_data = reader.ptb_raw_data(FLAGS.data_path)
     train_data, valid_data, test_data, _ = raw_data
 
@@ -356,55 +319,55 @@ def main(_):
             train_input = PTBInput(
                 config=config, data=train_data)
             with tf.variable_scope("Model", reuse=None, initializer=initializer):
-                m = PTBModel(is_training=True, config=config,
-                             input_=train_input)
-            tf.summary.scalar("Training Loss", m.cost)
-            tf.summary.scalar("Learning Rate", m.lr)
+                train_model = PTBModel(is_training=True, config=config,
+                                       input_=train_input)
+            tf.summary.scalar("Training Loss", train_model.cost)
+            tf.summary.scalar("Learning Rate", train_model.lr)
 
         with tf.name_scope("Valid"):
             valid_input = PTBInput(
                 config=config, data=valid_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-                mvalid = PTBModel(is_training=False,
-                                  config=config, input_=valid_input)
-            tf.summary.scalar("Validation Loss", mvalid.cost)
+                valid_model = PTBModel(is_training=False,
+                                       config=config, input_=valid_input)
+            tf.summary.scalar("Validation Loss", valid_model.cost)
 
         with tf.name_scope("Test"):
             test_input = PTBInput(
                 config=eval_config, data=test_data)
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
-                mtest = PTBModel(is_training=False, config=eval_config,
-                                 input_=test_input)
+                test_model = PTBModel(is_training=False, config=eval_config,
+                                      input_=test_input)
 
-        models = {"Train": m, "Valid": mvalid, "Test": mtest}
+        models = {"Train": train_model,
+                  "Valid": valid_model, "Test": test_model}
         for name, model in models.items():
             model.export_ops(name)
         metagraph = tf.train.export_meta_graph()
-        soft_placement = False
 
     with tf.Graph().as_default():
         tf.train.import_meta_graph(metagraph)
         for model in models.values():
             model.import_ops()
         sv = tf.train.Supervisor(logdir=FLAGS.save_path)
-        config_proto = tf.ConfigProto(allow_soft_placement=soft_placement)
-        with sv.managed_session(config=config_proto) as session:
+        with sv.managed_session(config=tf.ConfigProto()) as session:
             for i in range(config.epoch):
-                lr_decay = config.lr_decay ** max(i + 1 - config.nth_epoch_to_dacay_lr, 0)
-                m.assign_lr(session, config.learning_rate * lr_decay)
+                lr_decay = config.lr_decay ** max(i +
+                                                  1 - config.nth_epoch_to_dacay_lr, 0)
+                train_model.assign_lr(session, config.learning_rate * lr_decay)
 
                 print("Epoch: %d Learning rate: %.3f" %
-                      (i + 1, session.run(m.lr)))
-                train_perplexity = run_epoch(session, m, eval_op=m.train_op,
+                      (i + 1, session.run(train_model.lr)))
+                train_perplexity = run_epoch(session, train_model, eval_op=train_model.train_op,
                                              verbose=True)
                 print("Epoch: %d Train Perplexity: %.3f" %
                       (i + 1, train_perplexity))
-                valid_perplexity = run_epoch(session, mvalid)
+                valid_perplexity = run_epoch(session, valid_model)
                 print("Epoch: %d Valid Perplexity: %.3f" %
                       (i + 1, valid_perplexity))
 
-            print('Start testing')
-            test_perplexity = run_epoch(session, mtest)
+            print('Tesing')
+            test_perplexity = run_epoch(session, test_model)
             print("Test Perplexity: %.3f" % test_perplexity)
 
             if FLAGS.save_path:

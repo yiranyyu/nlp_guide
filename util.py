@@ -54,8 +54,8 @@ class UpdateCollection(object):
 
   def __init__(self, metagraph, model):
     self._metagraph = metagraph
-    self.replicate_states(model.initial_state_name)
-    self.replicate_states(model.final_state_name)
+    self.replicate_states(model.get_initial_state_name)
+    self.replicate_states(model.get_final_state_name)
     self.update_snapshot_name("variables")
     self.update_snapshot_name("trainable_variables")
 

@@ -47,7 +47,6 @@ class PTBModel(object):
     def __init__(self, is_training, config, input_data):
         self._is_training = is_training
         self.input = input_data
-        self._cell = None
         self.batch_size = input_data.batch_size
         self.num_steps = input_data.num_steps
         size = config.hidden_size
@@ -146,15 +145,6 @@ class PTBModel(object):
             self._new_lr = tf.get_collection_ref("new_lr")[0]
             self._lr_update = tf.get_collection_ref("lr_update")[0]
             rnn_params = tf.get_collection_ref("rnn_params")
-            if self._cell and rnn_params:
-                params_saveable = tf.contrib.cudnn_rnn.RNNParamsSaveable(
-                    self._cell,
-                    self._cell.params_to_canonical,
-                    self._cell.canonical_to_params,
-                    rnn_params,
-                    base_variable_scope="Model/RNN")
-                tf.add_to_collection(
-                    tf.GraphKeys.SAVEABLE_OBJECTS, params_saveable)
         self.cost = tf.get_collection_ref(
             util.with_prefix(self._name, "cost"))[0]
         num_replicas = 1

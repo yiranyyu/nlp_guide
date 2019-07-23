@@ -7,7 +7,6 @@ from tensorflow.python.client import device_lib
 
 tf.compat.v1.enable_eager_execution()
 print("Eager mode: %s" % tf.executing_eagerly())
-logging = tf.logging
 
 # Get command line arguments
 flags = tf.flags
@@ -39,7 +38,7 @@ class PTBInput(object):
         self.batch_size = batch_size = config.batch_size
         self.num_steps = num_steps = config.num_steps
         self.epoch_size = ((len(data) // batch_size) - 1) // num_steps
-        self.input_data, self.targets = reader.ptb_producer(
+        self.data, self.targets = reader.ptb_producer(
             data, batch_size, num_steps)
 
 
@@ -49,13 +48,12 @@ class PTBModel(object):
         self.input = input_data
         self.batch_size = input_data.batch_size
         self.num_steps = input_data.num_steps
-        size = config.hidden_size
+        hidden_size = config.hidden_size
         vocab_size = config.vocab_size
 
-        with tf.device("/cpu:0"):
-            embedding = tf.get_variable(
-                "embedding", [vocab_size, size], dtype=data_type())
-            inputs = tf.nn.embedding_lookup(embedding, input_data.input_data)
+        embedding = tf.get_variable(
+            "embedding", [vocab_size, hidden_size], dtype=data_type())
+        inputs = tf.nn.embedding_lookup(embedding, input_data.data)
 
         if is_training and config.keep_prob < 1:
             inputs = tf.nn.dropout(inputs, config.keep_prob)
@@ -63,7 +61,7 @@ class PTBModel(object):
         output, state = self._build_rnn_graph(inputs, config, is_training)
 
         softmax_w = tf.get_variable(
-            "softmax_w", [size, vocab_size], dtype=data_type())
+            "softmax_w", [hidden_size, vocab_size], dtype=data_type())
         softmax_b = tf.get_variable(
             "softmax_b", [vocab_size], dtype=data_type())
         logits = tf.nn.xw_plus_b(output, softmax_w, softmax_b)
@@ -79,25 +77,22 @@ class PTBModel(object):
             average_across_timesteps=False,
             average_across_batch=True)
 
-        # Update the cost
         self.cost = tf.reduce_sum(loss)
         self.final_state = state
 
-        if not is_training:
-            return
+        if is_training:
+            self.lr = tf.Variable(0.0, trainable=False)
+            tvars = tf.trainable_variables()
+            grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars),
+                                              config.max_grad_norm)
+            optimizer = tf.train.GradientDescentOptimizer(self.lr)
+            self.train_op = optimizer.apply_gradients(
+                zip(grads, tvars),
+                global_step=tf.train.get_or_create_global_step())
 
-        self.lr = tf.Variable(0.0, trainable=False)
-        tvars = tf.trainable_variables()
-        grads, _ = tf.clip_by_global_norm(tf.gradients(self.cost, tvars),
-                                          config.max_grad_norm)
-        optimizer = tf.train.GradientDescentOptimizer(self.lr)
-        self.train_op = optimizer.apply_gradients(
-            zip(grads, tvars),
-            global_step=tf.train.get_or_create_global_step())
-
-        self._new_lr = tf.placeholder(
-            tf.float32, shape=[], name="new_learning_rate")
-        self._lr_update = tf.assign(self.lr, self._new_lr)
+            self._new_lr = tf.placeholder(
+                tf.float32, shape=[], name="new_learning_rate")
+            self._lr_update = tf.assign(self.lr, self._new_lr)
 
     def _build_rnn_graph(self, inputs, config, is_training):
         def make_cell():
@@ -124,7 +119,6 @@ class PTBModel(object):
         session.run(self._lr_update, feed_dict={self._new_lr: lr_value})
 
     def export_ops(self, name):
-        """Exports ops to collections."""
         self._name = name
         ops = {util.with_prefix(self._name, "cost"): self.cost}
         if self._is_training:
@@ -138,13 +132,11 @@ class PTBModel(object):
         util.export_state_tuples(self.final_state, self.final_state_name)
 
     def import_ops(self):
-        """Imports ops from collections."""
         if self._is_training:
             self.train_op = tf.get_collection_ref("train_op")[0]
             self.lr = tf.get_collection_ref("lr")[0]
             self._new_lr = tf.get_collection_ref("new_lr")[0]
             self._lr_update = tf.get_collection_ref("lr_update")[0]
-            rnn_params = tf.get_collection_ref("rnn_params")
         self.cost = tf.get_collection_ref(
             util.with_prefix(self._name, "cost"))[0]
         num_replicas = 1

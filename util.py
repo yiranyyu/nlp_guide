@@ -43,20 +43,20 @@ def data_type():
 
 
 class Config(object):
-    init_scale = 0.1
+    init_scale = 0.05
     learning_rate = 1.0
     max_grad_norm = 5
     num_layers = 2
-    num_steps = 20
-    hidden_size = 200
+    num_steps = 35
+    hidden_size = 650
 
-    # nth_epoch_to_dacay_lr = 4
-    # epoch = 13
+    # nth_epoch_to_dacay_lr = 6
+    # epoch = 39
     nth_epoch_to_dacay_lr = 1
     epoch = 2
 
-    keep_prob = 1.0
-    lr_decay = 0.5
+    keep_prob = 0.5
+    lr_decay = 0.8
     batch_size = 20
     vocab_size = 10000
     float = tf.float32

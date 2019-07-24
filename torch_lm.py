@@ -10,6 +10,8 @@ from data_utils import Dictionary, Corpus
 class RNNLM(nn.Module):
     def __init__(self, vocab_size: int, embed_size: int, hidden_size: int, num_layers: int, device, dropout: float, batch_size: int):
         super(RNNLM, self).__init__()
+        # print('Init model with vocab=%d, emb=%d, hid=%d, batch_size=%d, drop=%.3lf' %
+        #       (vocab_size, embed_size, hidden_size, batch_size, dropout))
         self.drop = nn.Dropout(dropout)
         self.embed = nn.Embedding(vocab_size, embed_size)
         self.lstm = nn.LSTM(embed_size, hidden_size,

@@ -43,12 +43,12 @@ def evaluate(model, data, criterion, seq_len, test=False, epoch=None):
 
 
 def get_model_path(args):
-    return os.path.join(args.model_dir, '%s_hid%d_seq%d_bat%d_layers%d_lr%.3lf_drop%.3lf.pt' % (
-        ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers, args.lr, args.dropout))
+    return os.path.join(args.model_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.3lf_drop%.3lf_seed=%d.pt' % (
+        ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers, args.lr, args.dropout, args.seed))
 
 
 def get_log_path(args):
-    return os.path.join(args.log_dir, '%s_hid%d_seq%d_bat%d_layers%d_lr%.3lf_drop%.3lf.pt' % (
+    return os.path.join(args.log_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.3lf_drop%.3lf.pt' % (
         ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers, args.lr, args.dropout))
 
 
@@ -90,8 +90,8 @@ def get_optimizer(type_: str, model):
 
 
 def train(args):
-    print('Train with hid=%d layers=%d drop=%.3lf seq_len=%d seed=%s' %
-          (args.hidden_size, args.num_layers, args.dropout, args.seq_length, args.seed))
+    print('Train with hid=%d layers=%d drop=%.3lf seq_len=%d lr=%.3lf, seed=%s' %
+          (args.hidden_size, args.num_layers, args.dropout, args.seq_length, args.lr, args.seed))
 
     continuous_no_update_epochs = 0
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -120,7 +120,7 @@ def train(args):
         if continuous_no_update_epochs == args.continuous_no_update_epochs_threshold:
             break
 
-    print('Test result is %s' % (np.exp(evaluate(RNNLM.load(get_model_path(args)),
+    print('Test result is %s\n' % (np.exp(evaluate(RNNLM.load(get_model_path(args)),
                                                  data=test_data, criterion=criterion, seq_len=args.seq_length, test=True))))
 
 
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-optimizer', help='Type of optimizer to use', dest='optimizer', default='Adam')
     parser.add_argument(
-        '-seed', help='Rand seed for numpy and pytorch', dest='seed', default=None)
+        '-seed', help='Rand seed for numpy and pytorch', dest='seed', default=None, type=int)
     parser.add_argument('-max_grad_norm', help='Minimum of gradient to clip',
                         dest='max_grad_norm', default=5, type=float)
     parser.add_argument('-dropout', help='Probability to drop a cell (deactivate it)',

@@ -1,5 +1,4 @@
 import numpy as np
-import sys
 import time
 from sklearn.neighbors import KDTree
 

@@ -4,9 +4,8 @@ import argparse
 import os
 import torch.nn as nn
 import numpy as np
-import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
-from data_utils import Dictionary, Corpus
+from data_utils import Corpus
 from torch_lm import RNNLM
 
 
@@ -29,8 +28,8 @@ def evaluate(model, data, criterion, seq_len, test=False, epoch=None):
     with torch.no_grad():
         states = model.generate_states()
         for i in range(0, data.size(1) - seq_len, seq_len):
-            inputs = data[:, i:i+seq_len].to(model.device)
-            targets = data[:, (i+1):(i+1)+seq_len].to(model.device)
+            inputs = data[:, i:i + seq_len].to(model.device)
+            targets = data[:, (i + 1):(i + 1) + seq_len].to(model.device)
             states = detach(states)
             outputs, states = model(inputs, states)
             total_loss += inputs.size(1) * criterion(outputs,
@@ -44,12 +43,14 @@ def evaluate(model, data, criterion, seq_len, test=False, epoch=None):
 
 def get_model_path(args):
     return os.path.join(args.model_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.5lf_drop%.3lf_seed=%d.pt' % (
-        ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers, args.lr, args.dropout, args.seed))
+        ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers,
+        args.lr, args.dropout, args.seed))
 
 
 def get_log_path(args):
     return os.path.join(args.log_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.5lf_drop%.3lf.pt' % (
-        ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers, args.lr, args.dropout))
+        ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers,
+        args.lr, args.dropout))
 
 
 def train_epoch(nth_epoch: int, model, train_data, criterion, optimizer, args):
@@ -59,8 +60,8 @@ def train_epoch(nth_epoch: int, model, train_data, criterion, optimizer, args):
     step = 0
     t0 = time.time()
     for i in range(0, train_data.size(1) - args.seq_length, args.seq_length):
-        inputs = train_data[:, i:i+args.seq_length].to(model.device)
-        targets = train_data[:, (i+1):(i+1)+args.seq_length].to(model.device)
+        inputs = train_data[:, i:i + args.seq_length].to(model.device)
+        targets = train_data[:, (i + 1):(i + 1) + args.seq_length].to(model.device)
 
         # Forward pass
         states = detach(states)
@@ -77,7 +78,8 @@ def train_epoch(nth_epoch: int, model, train_data, criterion, optimizer, args):
         step = new_step
         if args.verbose and step and step % 100 == 0:
             print('Epoch [{}/{}], Step[{}/{}], Loss: {:.4f}, Perplexity: {:5.2f}, {:.3f}ms/batch'
-                  .format(nth_epoch, args.epoch, step, (train_data.size(1) // args.seq_length), loss.item(), np.exp(loss.item()), ((time.time() - t0) * 10)), flush=True)
+                  .format(nth_epoch, args.epoch, step, (train_data.size(1) // args.seq_length), loss.item(),
+                          np.exp(loss.item()), ((time.time() - t0) * 10)), flush=True)
             t0 = time.time()
 
 
@@ -100,7 +102,8 @@ def train(args):
     train_data, eval_data, test_data = Corpus().get_data(
         args.data_dir, args.batch_size)
     model = RNNLM(vocab_size=args.vocab_size, embed_size=args.hidden_size, hidden_size=args.hidden_size,
-                  num_layers=args.num_layers, device=device, dropout=args.dropout, batch_size=args.batch_size).to(device)
+                  num_layers=args.num_layers, device=device, dropout=args.dropout, batch_size=args.batch_size).to(
+        device)
     criterion = nn.CrossEntropyLoss()
     optimizer = get_optimizer(args.optimizer, model)
 
@@ -122,8 +125,10 @@ def train(args):
             break
 
     print('Test result is %s' % (np.exp(evaluate(RNNLM.load(get_model_path(args)),
-                                                 data=test_data, criterion=criterion, seq_len=args.seq_length, test=True))))
+                                                 data=test_data, criterion=criterion, seq_len=args.seq_length,
+                                                 test=True))))
     print('Finished in %.3lfms\n' % ((time.time() - start) / 60))
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -154,8 +159,10 @@ if __name__ == '__main__':
     parser.add_argument('-num_layers', help='Number of LSTM layers',
                         dest='num_layers', default=2, type=int)
     parser.add_argument(
-        '-use_sample', help='Set it to True to use data in ./sample sub_directory of data directory', dest='use_sample', default=0, type=int)
-    parser.add_argument('-continuous_no_update_epochs_threshold', help='If there is continuos n epochs without new best validation result, break the training early',
+        '-use_sample', help='Set it to True to use data in ./sample sub_directory of data directory', dest='use_sample',
+        default=0, type=int)
+    parser.add_argument('-continuous_no_update_epochs_threshold',
+                        help='If there is continuos n epochs without new best validation result, break the training early',
                         dest='continuous_no_update_epochs_threshold', default=5, type=int)
     parser.add_argument('-vocab_size', help='Vocab will be reduced to this size',
                         dest='vocab_size', default=10000, type=int)

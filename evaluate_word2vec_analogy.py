@@ -43,7 +43,7 @@ if __name__ == "__main__":
                     miss += 1
                 result_file.write(' '.join([a, b, c, d, e]) + '\n')
             except KeyError as e:
-                log_file.write('Unkown word <' + str(e) + '>\n')
+                log_file.write('Unknown word <' + str(e) + '>\n')
             if i and i % 100 == 0:
                 log_file.write('i = %d, current acc = %.3f\n' %
                                (i, hit / (hit + miss)))

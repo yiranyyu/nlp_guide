@@ -1,4 +1,3 @@
-import sys
 import os
 
 if __name__ == "__main__":
@@ -11,7 +10,7 @@ if __name__ == "__main__":
     dropouts = [0.5]
     hidden_sizes = [400]
 
-    data_dir = './data/language_model/sample'
+    data_dir = './data/language_model'
     model_dir = './model'
 
     for hidden_size in hidden_sizes:

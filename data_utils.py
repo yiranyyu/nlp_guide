@@ -67,7 +67,8 @@ class Corpus(object):
 
     def get_data(self, path, batch_size=20):
         print('Using data from ' + path)
-        train, eval, test, _ = map(torch.tensor, ptb_raw_data(path))
+        train, eval, test, vocab_size = map(torch.tensor, ptb_raw_data(path))
         return (self.clip(train, batch_size),
                 self.clip(eval, batch_size),
-                self.clip(test, batch_size))
+                self.clip(test, batch_size),
+                vocab_size)

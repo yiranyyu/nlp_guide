@@ -99,9 +99,9 @@ def train(args):
     continuous_no_update_epochs = 0
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     _ = torch.empty(size=[0], device=device)
-    train_data, eval_data, test_data = Corpus().get_data(
+    train_data, eval_data, test_data, vocab_size= Corpus().get_data(
         args.data_dir, args.batch_size)
-    model = RNNLM(vocab_size=args.vocab_size, embed_size=args.hidden_size, hidden_size=args.hidden_size,
+    model = RNNLM(vocab_size=vocab_size, embed_size=args.hidden_size, hidden_size=args.hidden_size,
                   num_layers=args.num_layers, device=device, dropout=args.dropout, batch_size=args.batch_size).to(
         device)
     criterion = nn.CrossEntropyLoss()
@@ -164,8 +164,6 @@ if __name__ == '__main__':
     parser.add_argument('-continuous_no_update_epochs_threshold',
                         help='If there is continuos n epochs without new best validation result, break the training early',
                         dest='continuous_no_update_epochs_threshold', default=5, type=int)
-    parser.add_argument('-vocab_size', help='Vocab will be reduced to this size',
-                        dest='vocab_size', default=10000, type=int)
     parser.add_argument('-verbose', help='Set it to True to see more trainig detail in console',
                         dest='verbose', default=0, type=int)
     args = parser.parse_args()

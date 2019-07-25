@@ -12,6 +12,7 @@ from word2vec_model import Word2vecModel
 
 
 def train_process(pid, epoch, cbow, neg, dim, lr, win, num_processes, corpus_file, sample: float, batch_size_in_character: int):
+    exit()
     # Set file to point to the right chunk of training file
     file_size = os.path.getsize(corpus_file)
     start = file_size / num_processes * pid

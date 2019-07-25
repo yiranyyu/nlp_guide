@@ -37,18 +37,18 @@ def evaluate(model, data, criterion, seq_len, test=False, epoch=None):
                                                      targets.reshape(-1)).item()
     avg_loss = total_loss / (data.size(1) - 1)
     if not test:
-        print('[Epoch {}] evaluate Loss: {:.4f}, ppl: {:5.2f}'.format(
-            epoch, avg_loss, np.exp(avg_loss)), end='')
+        print('[Epoch {}] evaluate loss: {:.4f}, ppl: {:5.2f}'.format(
+            epoch, avg_loss, np.exp(avg_loss)), end='', flush=True)
     return avg_loss
 
 
 def get_model_path(args):
-    return os.path.join(args.model_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.3lf_drop%.3lf_seed=%d.pt' % (
+    return os.path.join(args.model_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.5lf_drop%.3lf_seed=%d.pt' % (
         ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers, args.lr, args.dropout, args.seed))
 
 
 def get_log_path(args):
-    return os.path.join(args.log_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.3lf_drop%.3lf.pt' % (
+    return os.path.join(args.log_dir, '%shid%d_seq%d_bat%d_layers%d_lr%.5lf_drop%.3lf.pt' % (
         ('sample_' if args.use_sample else ''), args.hidden_size, args.seq_length, args.batch_size, args.num_layers, args.lr, args.dropout))
 
 
@@ -77,7 +77,7 @@ def train_epoch(nth_epoch: int, model, train_data, criterion, optimizer, args):
         step = new_step
         if args.verbose and step and step % 100 == 0:
             print('Epoch [{}/{}], Step[{}/{}], Loss: {:.4f}, Perplexity: {:5.2f}, {:.3f}ms/batch'
-                  .format(nth_epoch, args.epoch, step, (train_data.size(1) // args.seq_length), loss.item(), np.exp(loss.item()), ((time.time() - t0) * 10)))
+                  .format(nth_epoch, args.epoch, step, (train_data.size(1) // args.seq_length), loss.item(), np.exp(loss.item()), ((time.time() - t0) * 10)), flush=True)
             t0 = time.time()
 
 
@@ -90,7 +90,8 @@ def get_optimizer(type_: str, model):
 
 
 def train(args):
-    print('Train with hid=%d layers=%d drop=%.3lf seq_len=%d lr=%.3lf, seed=%s' %
+    start = time.time()
+    print('Train with hid=%d layers=%d drop=%.3lf seq_len=%d lr=%.5lf, seed=%s' %
           (args.hidden_size, args.num_layers, args.dropout, args.seq_length, args.lr, args.seed))
 
     continuous_no_update_epochs = 0
@@ -110,19 +111,19 @@ def train(args):
                              seq_len=args.seq_length, epoch=nth_epoch)
         if not best_val_loss or eval_loss < best_val_loss:
             print(' >>> Save model %.3lf -> %.3lf' %
-                  ((np.exp(best_val_loss) if best_val_loss else 0.0), np.exp(eval_loss)))
+                  ((np.exp(best_val_loss) if best_val_loss else 0.0), np.exp(eval_loss)), flush=True)
             best_val_loss = eval_loss
             continuous_no_update_epochs = 0
             model.save(get_model_path(args))
         else:
             continuous_no_update_epochs += 1
-            print('')
+            print('', flush=True)
         if continuous_no_update_epochs == args.continuous_no_update_epochs_threshold:
             break
 
-    print('Test result is %s\n' % (np.exp(evaluate(RNNLM.load(get_model_path(args)),
+    print('Test result is %s' % (np.exp(evaluate(RNNLM.load(get_model_path(args)),
                                                  data=test_data, criterion=criterion, seq_len=args.seq_length, test=True))))
-
+    print('Finished in %.3lfms\n' % ((time.time() - start) / 60))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -135,9 +136,9 @@ if __name__ == '__main__':
     parser.add_argument('-hidden_size', help='Hidden size',
                         dest='hidden_size', default=300, type=int)
     parser.add_argument('-lr', help='Starting learning rate',
-                        dest='lr', default=0.004, type=float)
-    parser.add_argument('-epoch', help='Number of training epochs',
-                        dest='epoch', default=30, type=int)
+                        dest='lr', default=0.0001, type=float)
+    parser.add_argument('-max_epoch', help='Number of training epochs',
+                        dest='epoch', default=200, type=int)
     parser.add_argument('-batch_size', help='Number of steps in one batch',
                         dest='batch_size', default=20, type=int)
     parser.add_argument('-seq_length', help='Length of sequence pass to rnn cell',
@@ -153,13 +154,13 @@ if __name__ == '__main__':
     parser.add_argument('-num_layers', help='Number of LSTM layers',
                         dest='num_layers', default=2, type=int)
     parser.add_argument(
-        '-use_sample', help='Set it to True to use data in ./sample sub_directory of data directory', dest='use_sample', default=False, type=bool)
+        '-use_sample', help='Set it to True to use data in ./sample sub_directory of data directory', dest='use_sample', default=0, type=int)
     parser.add_argument('-continuous_no_update_epochs_threshold', help='If there is continuos n epochs without new best validation result, break the training early',
                         dest='continuous_no_update_epochs_threshold', default=5, type=int)
     parser.add_argument('-vocab_size', help='Vocab will be reduced to this size',
                         dest='vocab_size', default=10000, type=int)
     parser.add_argument('-verbose', help='Set it to True to see more trainig detail in console',
-                        dest='verbose', default=False, type=bool)
+                        dest='verbose', default=0, type=int)
     args = parser.parse_args()
     init(args)
     train(args)

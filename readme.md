@@ -26,3 +26,9 @@ Use the configuration in `main_lm.py`, I get the following result
 * sklearn >= 0.21.2
 * pytorch >= 1.1.0
 * Cython >= 0.29.4
+
+## Announcement
+
+This whole project is built by [yirany](https://github.com/yiranyyu). The contribution info is incorrect because I used the server of my friend thy to do part of the test work of word2vec model, which has different git info setting.
+
+Thanks [salesforce](https://github.com/salesforce/awd-lstm-lm), [chrisjmccormick](https://github.com/chrisjmccormick/word2vec_commented), reading their work really helped me a lot.

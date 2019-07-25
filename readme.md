@@ -27,6 +27,13 @@ Use the configuration in `main_lm.py`, I get the following result
 * pytorch >= 1.1.0
 * Cython >= 0.29.4
 
+## Start training
+
+```py
+python main.py      # train word2vec model
+python main_lm.py   # train lstm language model
+```
+
 ## Announcement
 
 This whole project is built by [yirany](https://github.com/yiranyyu). The contribution info is incorrect because I used the server of my friend thy to do part of the test work of word2vec model, which has different git info setting.
